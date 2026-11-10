@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { getHabits, updateHabit, deleteHabit } from '../api';
+import { getHabitById, updateHabit, deleteHabit } from '../api';
 
 /**
  * EditHabit Page (/habits/:id/edit)
  * Reads :id from route parameters using useParams().
- * Pre-fills form with current habit name and allows updating or deleting with confirmation.
+ * Pre-fills form with current habit from MongoDB Atlas and allows updating or deleting with confirmation.
  */
 const EditHabit = () => {
   const { id } = useParams();
@@ -17,19 +17,26 @@ const EditHabit = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [habitNotFound, setHabitNotFound] = useState(false);
 
-  // Fetch habit on mount to pre-fill the form
+  // Fetch habit from database on mount to pre-fill the form
   useEffect(() => {
     let isMounted = true;
-    getHabits().then((habits) => {
-      if (!isMounted) return;
-      const target = habits.find((h) => h._id === String(id));
-      if (target) {
-        setName(target.name);
-      } else {
-        setHabitNotFound(true);
-      }
-      setLoading(false);
-    });
+    getHabitById(id)
+      .then((habit) => {
+        if (!isMounted) return;
+        if (habit) {
+          setName(habit.name);
+        } else {
+          setHabitNotFound(true);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('Failed to load habit:', err);
+        if (isMounted) {
+          setHabitNotFound(true);
+          setLoading(false);
+        }
+      });
 
     return () => {
       isMounted = false;
@@ -62,7 +69,7 @@ const EditHabit = () => {
 
   const handleDelete = async () => {
     const confirmed = window.confirm(
-      'Are you sure you want to delete this habit? All tracking history will be removed.'
+      'Are you sure you want to delete this habit? All tracking history will be permanently deleted.'
     );
     if (!confirmed) return;
 

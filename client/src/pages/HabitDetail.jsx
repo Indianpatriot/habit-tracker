@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Heatmap from '../components/Heatmap';
-import { getHabits, getStats, getHeatmap } from '../api';
+import { getHabitById, getStats, getHeatmap } from '../api';
 
 /**
  * HabitDetail Page (/habits/:id)
- * Displays habit metadata, streak statistics (current streak, longest streak, last 30 days),
+ * Displays habit metadata, real streak statistics from MongoDB logs,
  * and the 90-day activity heatmap filtered for this specific habit.
  */
 const HabitDetail = () => {
@@ -20,17 +20,23 @@ const HabitDetail = () => {
     let isMounted = true;
 
     Promise.all([
-      getHabits(),
+      getHabitById(id),
       getStats(id),
       getHeatmap(id)
-    ]).then(([habits, statsData, heatmapResult]) => {
-      if (!isMounted) return;
-      const found = habits.find((h) => h._id === String(id));
-      setHabit(found || null);
-      setStats(statsData);
-      setHeatmapData(heatmapResult);
-      setLoading(false);
-    });
+    ])
+      .then(([habitData, statsData, heatmapResult]) => {
+        if (!isMounted) return;
+        setHabit(habitData || null);
+        setStats(statsData);
+        setHeatmapData(Array.isArray(heatmapResult) ? heatmapResult : []);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('Failed to load habit details:', err);
+        if (isMounted) {
+          setLoading(false);
+        }
+      });
 
     return () => {
       isMounted = false;
@@ -38,7 +44,7 @@ const HabitDetail = () => {
   }, [id]);
 
   if (loading) {
-    return <div className="card text-center text-muted">Loading habit details...</div>;
+    return <div className="card text-center text-muted">Loading habit details from database...</div>;
   }
 
   if (!habit) {
@@ -74,7 +80,7 @@ const HabitDetail = () => {
         </div>
       </div>
 
-      {/* Stats strip */}
+      {/* Real Stats strip */}
       {stats && (
         <div className="stats-strip">
           <div className="stat-box">

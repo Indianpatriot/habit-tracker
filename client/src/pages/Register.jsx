@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { register } from '../api';
 
 /**
  * Register Page
- * Controlled form with inline validation (name, email format, password min length).
- * Sets a dummy session token in localStorage and redirects to Dashboard.
+ * Controlled form that registers a new user in MongoDB Atlas via Express API.
  */
 const Register = () => {
   const navigate = useNavigate();
@@ -18,7 +18,6 @@ const Register = () => {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Validate form fields
   const validate = () => {
     const newErrors = {};
 
@@ -46,13 +45,12 @@ const Register = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    // Clear error for edited field
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: '' }));
+    if (errors[name] || errors.form) {
+      setErrors((prev) => ({ ...prev, [name]: '', form: '' }));
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validate();
 
@@ -62,12 +60,21 @@ const Register = () => {
     }
 
     setIsSubmitting(true);
+    setErrors({});
 
-    // Simulate registration: store dummy token for Phase 1
-    localStorage.setItem('token', 'phase1-dummy-session-token');
+    try {
+      await register({
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        password: formData.password
+      });
 
-    // Programmatic redirect to Dashboard
-    navigate('/');
+      // Redirect to Dashboard on successful registration
+      navigate('/');
+    } catch (err) {
+      setErrors({ form: err.message || 'Registration failed. Please try again.' });
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -80,6 +87,12 @@ const Register = () => {
           </h1>
           <p className="page-subtitle">Build habits with GitHub-style streak graphs</p>
         </div>
+
+        {errors.form && (
+          <div className="alert" style={{ backgroundColor: '#fee2e2', borderColor: '#fca5a5', color: '#991b1b', marginBottom: '1.25rem' }}>
+            {errors.form}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} noValidate>
           <div className="form-group">
@@ -95,6 +108,7 @@ const Register = () => {
               value={formData.name}
               onChange={handleChange}
               autoComplete="name"
+              disabled={isSubmitting}
             />
             {errors.name && <span className="error-message">{errors.name}</span>}
           </div>
@@ -112,6 +126,7 @@ const Register = () => {
               value={formData.email}
               onChange={handleChange}
               autoComplete="email"
+              disabled={isSubmitting}
             />
             {errors.email && <span className="error-message">{errors.email}</span>}
           </div>
@@ -129,6 +144,7 @@ const Register = () => {
               value={formData.password}
               onChange={handleChange}
               autoComplete="new-password"
+              disabled={isSubmitting}
             />
             {errors.password && <span className="error-message">{errors.password}</span>}
           </div>

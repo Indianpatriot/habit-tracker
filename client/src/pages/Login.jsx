@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { login } from '../api';
 
 /**
  * Login Page
- * Controlled form with inline validation (email format, password min length).
- * Sets a dummy session token in localStorage and redirects to Dashboard.
+ * Controlled form that authenticates the user against MongoDB Atlas via Express API.
  */
 const Login = () => {
   const navigate = useNavigate();
@@ -17,7 +17,6 @@ const Login = () => {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Validate form fields
   const validate = () => {
     const newErrors = {};
 
@@ -39,13 +38,12 @@ const Login = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    // Clear field-specific error as user types
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: '' }));
+    if (errors[name] || errors.form) {
+      setErrors((prev) => ({ ...prev, [name]: '', form: '' }));
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validate();
 
@@ -55,12 +53,20 @@ const Login = () => {
     }
 
     setIsSubmitting(true);
+    setErrors({});
 
-    // Simulate login: store dummy auth token for Phase 1
-    localStorage.setItem('token', 'phase1-dummy-session-token');
+    try {
+      await login({
+        email: formData.email.trim(),
+        password: formData.password
+      });
 
-    // Programmatic redirect to Dashboard
-    navigate('/');
+      // Redirect to Dashboard on successful login
+      navigate('/');
+    } catch (err) {
+      setErrors({ form: err.message || 'Login failed. Please check your credentials.' });
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -73,6 +79,12 @@ const Login = () => {
           </h1>
           <p className="page-subtitle">Track your consistency and streaks</p>
         </div>
+
+        {errors.form && (
+          <div className="alert" style={{ backgroundColor: '#fee2e2', borderColor: '#fca5a5', color: '#991b1b', marginBottom: '1.25rem' }}>
+            {errors.form}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} noValidate>
           <div className="form-group">
@@ -88,6 +100,7 @@ const Login = () => {
               value={formData.email}
               onChange={handleChange}
               autoComplete="email"
+              disabled={isSubmitting}
             />
             {errors.email && <span className="error-message">{errors.email}</span>}
           </div>
@@ -105,6 +118,7 @@ const Login = () => {
               value={formData.password}
               onChange={handleChange}
               autoComplete="current-password"
+              disabled={isSubmitting}
             />
             {errors.password && <span className="error-message">{errors.password}</span>}
           </div>

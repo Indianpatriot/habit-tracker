@@ -1,20 +1,14 @@
 const mongoose = require('mongoose');
 
-// Connect to MongoDB Atlas using connection string from environment variables
+// Connect to MongoDB using the URI from environment variables
 const connectDB = async () => {
-  if (!process.env.MONGO_URI) {
-    console.warn('Warning: MONGO_URI is not set in .env. Waiting for MongoDB Atlas URI.');
-    return;
-  }
-
   try {
-    const conn = await mongoose.connect(process.env.MONGO_URI);
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log('MongoDB connected');
   } catch (error) {
-    console.error(`MongoDB Connection Error: ${error.message}`);
-    process.exit(1); // Exit process with failure code on connection failure
+    console.error(error.message);
+    process.exit(1);
   }
 };
 
 module.exports = connectDB;
-

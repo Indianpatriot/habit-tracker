@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-// User schema for MCA RVCE Habit Graph Tracker
+// User schema for Habit Graph Tracker
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -26,9 +26,8 @@ const userSchema = new mongoose.Schema({
   }
 });
 
-// Pre-save hook: Hash password with bcrypt before saving to database
+// Pre-save hook: Hash password with bcrypt before saving to MongoDB
 userSchema.pre('save', async function () {
-  // Only hash password if it has been modified or is new
   if (!this.isModified('password')) {
     return;
   }
@@ -36,7 +35,7 @@ userSchema.pre('save', async function () {
   this.password = await bcrypt.hash(this.password, salt);
 });
 
-// Instance method: Compares entered plaintext password with stored bcrypt hash
+// Compare entered password with stored bcrypt hash
 userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };

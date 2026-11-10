@@ -1,112 +1,179 @@
 // API client layer for Habit Graph Tracker
-//
-// NOTE FOR PHASE 2:
-// In Phase 2, these mock functions will be swapped with actual fetch() calls
-// against the Express backend using import.meta.env.VITE_API_URL and an
-// 'Authorization: Bearer <token>' header stored in localStorage.
-// The function signatures and return shapes will remain identical.
+// Communicates with Express backend connected to MongoDB Atlas
 
-import { habits, heatmap, stats, getHabitSpecificHeatmap } from './data/sampleData.js';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-// Mutable in-memory store so Phase 1 UI interactions (add, edit, delete, mark) work dynamically
-let inMemoryHabits = [...habits];
-let completedLogs = new Set(); // tracks "habitId_YYYY-MM-DD"
+// Helper to construct authorization headers with stored JWT token
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  };
+};
 
-// Small simulated network latency helper (100ms)
-const delay = (ms = 100) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
- * Fetch all habits for the logged-in user
- * Phase 2: GET ${VITE_API_URL}/api/habits
- */
-export const getHabits = async () => {
-  await delay();
-  return inMemoryHabits.map((h) => ({ ...h }));
+// Generic response handler to parse JSON and throw meaningful errors
+const handleResponse = async (res) => {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (res.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    }
+    const errorMsg = data.message || `Request failed with status ${res.status}`;
+    throw new Error(errorMsg);
+  }
+  return data;
 };
 
 /**
- * Fetch 90-day heatmap data
- * If habitId is provided, returns binary completion heatmap (0 or 1) for that habit.
- * Otherwise returns overall activity heatmap (0 to 4).
- * Phase 2: GET ${VITE_API_URL}/api/logs/heatmap?habitId=...
+ * Register a new user in MongoDB
+ */
+export const register = async ({ name, email, password }) => {
+  const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, email, password })
+  });
+  const data = await handleResponse(res);
+  if (data.token) {
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify({ _id: data._id, name: data.name, email: data.email }));
+  }
+  return data;
+};
+
+/**
+ * Authenticate existing user and store JWT token
+ */
+export const login = async ({ email, password }) => {
+  const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  const data = await handleResponse(res);
+  if (data.token) {
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify({ _id: data._id, name: data.name, email: data.email }));
+  }
+  return data;
+};
+
+/**
+ * Clear user session
+ */
+export const logout = () => {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+};
+
+/**
+ * Fetch all habits for the logged-in user from MongoDB Atlas
+ */
+export const getHabits = async (query = '') => {
+  const url = query
+    ? `${API_BASE_URL}/api/habits?q=${encodeURIComponent(query)}`
+    : `${API_BASE_URL}/api/habits`;
+
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: getAuthHeaders()
+  });
+  return handleResponse(res);
+};
+
+/**
+ * Fetch single habit by ID
+ */
+export const getHabitById = async (id) => {
+  const res = await fetch(`${API_BASE_URL}/api/habits/${id}`, {
+    method: 'GET',
+    headers: getAuthHeaders()
+  });
+  return handleResponse(res);
+};
+
+/**
+ * Fetch 90-day heatmap data from MongoDB logs
  */
 export const getHeatmap = async (habitId = null) => {
-  await delay();
-  if (habitId) {
-    return getHabitSpecificHeatmap(habitId);
-  }
-  return heatmap.map((item) => ({ ...item }));
+  const url = habitId
+    ? `${API_BASE_URL}/api/logs/heatmap?habitId=${encodeURIComponent(habitId)}`
+    : `${API_BASE_URL}/api/logs/heatmap`;
+
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: getAuthHeaders()
+  });
+  return handleResponse(res);
 };
 
 /**
- * Fetch habit statistics (current streak, longest streak, last 30 days)
- * Phase 2: GET ${VITE_API_URL}/api/habits/:id/stats
+ * Fetch real streak & last 30 days statistics for a habit
  */
 export const getStats = async (habitId) => {
-  await delay();
-  return { ...stats(habitId) };
+  const res = await fetch(`${API_BASE_URL}/api/habits/${habitId}/stats`, {
+    method: 'GET',
+    headers: getAuthHeaders()
+  });
+  return handleResponse(res);
 };
 
 /**
- * Create a new habit
- * Phase 2: POST ${VITE_API_URL}/api/habits with body { name }
+ * Create a new habit in MongoDB Atlas
  */
 export const addHabit = async (habitData) => {
-  await delay();
-  const newHabit = {
-    _id: String(Date.now()),
-    name: habitData.name.trim(),
-    createdAt: new Date().toISOString()
-  };
-  inMemoryHabits.push(newHabit);
-  return { ...newHabit };
+  const res = await fetch(`${API_BASE_URL}/api/habits`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ name: habitData.name })
+  });
+  return handleResponse(res);
 };
 
 /**
- * Update an existing habit
- * Phase 2: PUT ${VITE_API_URL}/api/habits/:id with body { name }
+ * Update habit in MongoDB Atlas
  */
 export const updateHabit = async (id, habitData) => {
-  await delay();
-  const index = inMemoryHabits.findIndex((h) => h._id === String(id));
-  if (index === -1) {
-    throw new Error('Habit not found');
-  }
-  inMemoryHabits[index] = {
-    ...inMemoryHabits[index],
-    name: habitData.name.trim()
-  };
-  return { ...inMemoryHabits[index] };
+  const res = await fetch(`${API_BASE_URL}/api/habits/${id}`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ name: habitData.name })
+  });
+  return handleResponse(res);
 };
 
 /**
- * Delete a habit by ID
- * Phase 2: DELETE ${VITE_API_URL}/api/habits/:id
+ * Delete habit and its logs in MongoDB Atlas
  */
 export const deleteHabit = async (id) => {
-  await delay();
-  inMemoryHabits = inMemoryHabits.filter((h) => h._id !== String(id));
-  return { success: true, id };
+  const res = await fetch(`${API_BASE_URL}/api/habits/${id}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders()
+  });
+  return handleResponse(res);
 };
 
 /**
- * Mark a habit as completed for a given date
- * Phase 2: POST ${VITE_API_URL}/api/logs with body { habitId, date }
+ * Record a habit completion log for a date in MongoDB Atlas
  */
 export const markDone = async (habitId, date) => {
-  await delay();
-  const key = `${habitId}_${date}`;
-  completedLogs.add(key);
-  return { success: true, habitId, date };
+  const res = await fetch(`${API_BASE_URL}/api/logs`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ habitId, date })
+  });
+  return handleResponse(res);
 };
 
 /**
- * Undo completion of a habit for a given date
- * Phase 2: DELETE ${VITE_API_URL}/api/logs/:habitId?date=...
+ * Delete habit completion log for a date in MongoDB Atlas
  */
 export const undoDone = async (habitId, date) => {
-  await delay();
-  const key = `${habitId}_${date}`;
-  completedLogs.delete(key);
-  return { success: true, habitId, date };
+  const res = await fetch(`${API_BASE_URL}/api/logs/${habitId}?date=${encodeURIComponent(date)}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders()
+  });
+  return handleResponse(res);
 };

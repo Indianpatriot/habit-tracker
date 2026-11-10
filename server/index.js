@@ -4,8 +4,9 @@ const morgan = require('morgan');
 const path = require('path');
 const dotenv = require('dotenv');
 
-// Load environment variables from .env in /server or project root
+// Load environment variables
 dotenv.config();
+dotenv.config({ path: path.join(__dirname, '.env') });
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const connectDB = require('./config/db');
@@ -27,14 +28,15 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-// Authentication routes
+// API Routes
 app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/habits', require('./routes/habitRoutes'));
+app.use('/api/logs', require('./routes/logRoutes'));
 
 // Central error handling middleware (must be registered after routes)
 app.use(errorHandler);
 
-// Start HTTP server
+// Listen on PORT
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
-

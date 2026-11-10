@@ -5,7 +5,7 @@ import { getHabits, markDone, undoDone } from '../api';
 
 /**
  * Dashboard Page (/)
- * Lists all habits with a filter box bound to URL query string (?q=) using useSearchParams.
+ * Lists all habits from MongoDB Atlas with a filter box bound to URL query string (?q=).
  * Implements child-to-parent communication via onMarkDone and onUndo callbacks passed to HabitCard.
  */
 const Dashboard = () => {
@@ -17,19 +17,28 @@ const Dashboard = () => {
   // Read ?q= filter from the URL query string
   const searchQuery = searchParams.get('q') || '';
 
-  // Load habits from API layer
+  // Load habits from MongoDB Atlas backend
   useEffect(() => {
     let isMounted = true;
-    getHabits().then((data) => {
-      if (isMounted) {
-        setHabits(data);
-        setLoading(false);
-      }
-    });
+
+    getHabits(searchQuery)
+      .then((data) => {
+        if (isMounted) {
+          setHabits(Array.isArray(data) ? data : []);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load habits:', err);
+        if (isMounted) {
+          setLoading(false);
+        }
+      });
+
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [searchQuery]);
 
   // Update URL search params as the user types
   const handleSearchChange = (e) => {
@@ -50,20 +59,28 @@ const Dashboard = () => {
     return `${y}-${m}-${d}`;
   };
 
-  // Child-to-parent callback: mark habit done for today
+  // Child-to-parent callback: mark habit done in MongoDB Atlas
   const handleMarkDone = async (habitId) => {
-    const todayStr = getTodayString();
-    await markDone(habitId, todayStr);
-    const target = habits.find((h) => h._id === habitId);
-    showNotification(`✓ "${target ? target.name : 'Habit'}" marked done for today!`);
+    try {
+      const todayStr = getTodayString();
+      await markDone(habitId, todayStr);
+      const target = habits.find((h) => h._id === habitId);
+      showNotification(`✓ "${target ? target.name : 'Habit'}" marked done for today!`);
+    } catch (err) {
+      showNotification(`Failed to mark habit: ${err.message}`);
+    }
   };
 
-  // Child-to-parent callback: undo completion for today
+  // Child-to-parent callback: undo completion in MongoDB Atlas
   const handleUndo = async (habitId) => {
-    const todayStr = getTodayString();
-    await undoDone(habitId, todayStr);
-    const target = habits.find((h) => h._id === habitId);
-    showNotification(`↺ Undone completion for "${target ? target.name : 'Habit'}".`);
+    try {
+      const todayStr = getTodayString();
+      await undoDone(habitId, todayStr);
+      const target = habits.find((h) => h._id === habitId);
+      showNotification(`↺ Undone completion for "${target ? target.name : 'Habit'}".`);
+    } catch (err) {
+      showNotification(`Failed to undo habit: ${err.message}`);
+    }
   };
 
   const showNotification = (msg) => {
@@ -72,11 +89,6 @@ const Dashboard = () => {
       setNotification('');
     }, 3000);
   };
-
-  // Filter habits by search query (case-insensitive)
-  const filteredHabits = habits.filter((habit) =>
-    habit.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   return (
     <div>
@@ -90,7 +102,7 @@ const Dashboard = () => {
         </Link>
       </div>
 
-      {/* Temporary feedback banner */}
+      {/* Feedback banner */}
       {notification && <div className="alert alert-success">{notification}</div>}
 
       {/* Filter box bound to URL query string */}
@@ -106,10 +118,10 @@ const Dashboard = () => {
       </div>
 
       {loading ? (
-        <div className="card text-center text-muted">Loading habits...</div>
-      ) : filteredHabits.length > 0 ? (
+        <div className="card text-center text-muted">Loading habits from database...</div>
+      ) : habits.length > 0 ? (
         <div className="habit-list">
-          {filteredHabits.map((habit) => (
+          {habits.map((habit) => (
             <HabitCard
               key={habit._id}
               habit={habit}
@@ -134,7 +146,7 @@ const Dashboard = () => {
             </div>
           ) : (
             <div>
-              <p className="page-subtitle">No habits found. Start building your streaks!</p>
+              <p className="page-subtitle">No habits found in your database. Start building your streaks!</p>
               <Link to="/habits/new" className="btn btn-primary" style={{ marginTop: '1rem' }}>
                 Create your first habit
               </Link>
