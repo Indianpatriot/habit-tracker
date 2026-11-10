@@ -8,10 +8,9 @@ const protect = async (req, res, next) => {
   // Check for Bearer token in Authorization header
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     try {
-      // Extract token from "Bearer <token>"
       token = req.headers.authorization.split(' ')[1];
 
-      // Verify token signature
+      // Verify signed JWT token
       const decoded = jwt.verify(
         token,
         process.env.JWT_SECRET || 'supersecretphase2jwtkey12345'
@@ -37,4 +36,3 @@ const protect = async (req, res, next) => {
 };
 
 module.exports = { protect };
-
