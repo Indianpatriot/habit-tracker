@@ -3,7 +3,8 @@ const router = express.Router();
 const {
   markDone,
   undoDone,
-  getHeatmap
+  getHeatmap,
+  getActivitySummary
 } = require('../controllers/logController');
 const { protect } = require('../middleware/auth');
 
@@ -13,6 +14,6 @@ router.use(protect);
 router.post('/', markDone);
 router.delete('/:habitId', undoDone);
 router.get('/heatmap', getHeatmap);
+router.get('/activity-summary', getActivitySummary);
 
 module.exports = router;
-

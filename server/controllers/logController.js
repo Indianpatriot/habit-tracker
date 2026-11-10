@@ -71,14 +71,14 @@ const undoDone = async (req, res, next) => {
   }
 };
 
-// @desc    Get 90-day heatmap data (overall or habit-specific)
+// @desc    Get 90-day heatmap data from MongoDB Atlas
 // @route   GET /api/logs/heatmap
 // @access  Private
 const getHeatmap = async (req, res, next) => {
   try {
     const { habitId } = req.query;
 
-    // Generate 90-day date range ending today
+    // Generate 90-day date range ending today UTC
     const today = new Date();
     const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
 
@@ -99,12 +99,11 @@ const getHeatmap = async (req, res, next) => {
     // Group logs by YYYY-MM-DD
     const countsByDate = {};
     logs.forEach((log) => {
-      // log.date getter returns "YYYY-MM-DD"
       const dateStr = log.date;
       countsByDate[dateStr] = (countsByDate[dateStr] || 0) + 1;
     });
 
-    // Build exactly 90 entries
+    // Build exactly 90 entries ending today
     const items = [];
     for (let i = 89; i >= 0; i--) {
       const d = new Date(todayUTC);
@@ -114,7 +113,6 @@ const getHeatmap = async (req, res, next) => {
 
       items.push({
         date: dateStr,
-        // For habit-specific, binary 0 or 1; for overall, capped at 4
         count: habitId ? (rawCount > 0 ? 1 : 0) : Math.min(rawCount, 4)
       });
     }
@@ -125,7 +123,7 @@ const getHeatmap = async (req, res, next) => {
   }
 };
 
-// @desc    Get streak and 30-day stats for a habit
+// @desc    Get streak and 30-day stats for a habit from MongoDB Atlas
 // @route   GET /api/habits/:id/stats
 // @access  Private
 const getHabitStats = async (req, res, next) => {
@@ -138,11 +136,9 @@ const getHabitStats = async (req, res, next) => {
       throw new Error('Habit not found');
     }
 
-    // Fetch all logs for this habit sorted by date ascending
     const logs = await Log.find({ habitId, userId: req.user._id }).sort({ date: 1 });
     const logDatesSet = new Set(logs.map((l) => l.date));
 
-    // Calculate current streak
     const now = new Date();
     const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     const todayStr = formatUTCDateString(todayUTC);
@@ -154,7 +150,6 @@ const getHabitStats = async (req, res, next) => {
     let currentStreak = 0;
     let checkDate = new Date(todayUTC);
 
-    // If today is completed, start from today; if not but yesterday was completed, start from yesterday
     if (logDatesSet.has(todayStr)) {
       while (logDatesSet.has(formatUTCDateString(checkDate))) {
         currentStreak++;
@@ -168,12 +163,10 @@ const getHabitStats = async (req, res, next) => {
       }
     }
 
-    // Calculate longest streak in history
     let longestStreak = 0;
     let currentRun = 0;
     let previousDate = null;
 
-    // Convert set of dates to sorted list of timestamp values
     const sortedUniqueDays = Array.from(logDatesSet)
       .map((dStr) => {
         const [y, m, d] = dStr.split('-').map(Number);
@@ -200,7 +193,6 @@ const getHabitStats = async (req, res, next) => {
       }
     }
 
-    // Calculate last 30 days completion rate
     let last30Done = 0;
     for (let i = 0; i < 30; i++) {
       const d = new Date(todayUTC);
@@ -225,10 +217,85 @@ const getHabitStats = async (req, res, next) => {
   }
 };
 
+// @desc    Get most and least active habit summary over last 90 days from real MongoDB logs
+// @route   GET /api/logs/activity-summary
+// @access  Private
+const getActivitySummary = async (req, res, next) => {
+  try {
+    const habits = await Habit.find({ userId: req.user._id });
+
+    if (!habits || habits.length === 0) {
+      return res.status(200).json({
+        most: null,
+        least: null,
+        message: 'No habits yet'
+      });
+    }
+
+    // 90-day date range ending today UTC
+    const today = new Date();
+    const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+    const startDateUTC = new Date(todayUTC);
+    startDateUTC.setUTCDate(todayUTC.getUTCDate() - 89);
+
+    // Fetch logs in last 90 days for this user
+    const logs = await Log.find({
+      userId: req.user._id,
+      date: { $gte: startDateUTC, $lte: todayUTC }
+    });
+
+    // Count logs per habit
+    const countsMap = {};
+    logs.forEach((log) => {
+      const hId = String(log.habitId);
+      countsMap[hId] = (countsMap[hId] || 0) + 1;
+    });
+
+    const items = habits.map((h) => {
+      const count = countsMap[String(h._id)] || 0;
+      return {
+        habitId: String(h._id),
+        name: h.name,
+        count,
+        percent: Math.round((count / 90) * 100)
+      };
+    });
+
+    if (items.length === 1) {
+      return res.status(200).json({
+        most: items[0],
+        least: null,
+        message: 'Add more habits to compare'
+      });
+    }
+
+    const allSame = items.every((h) => h.count === items[0].count);
+    if (allSame) {
+      const sortedAlpha = [...items].sort((a, b) => a.name.localeCompare(b.name));
+      return res.status(200).json({
+        most: sortedAlpha[0],
+        least: null,
+        message: 'All habits are equally active'
+      });
+    }
+
+    const sortedForMost = [...items].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+    const sortedForLeast = [...items].sort((a, b) => a.count - b.count || a.name.localeCompare(b.name));
+
+    return res.status(200).json({
+      most: sortedForMost[0],
+      least: sortedForLeast[0],
+      message: null
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   markDone,
   undoDone,
   getHeatmap,
-  getHabitStats
+  getHabitStats,
+  getActivitySummary
 };
-
