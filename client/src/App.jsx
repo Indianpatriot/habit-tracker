@@ -16,8 +16,6 @@ import NotFound from './pages/NotFound';
 /**
  * Root Application Component
  * Sets up ErrorBoundary, BrowserRouter, and nested routes.
- * /login and /register sit outside the Layout.
- * Protected routes sit within ProtectedRoute and Layout.
  */
 function App() {
   return (

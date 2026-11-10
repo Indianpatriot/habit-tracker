@@ -495,3 +495,114 @@ a:hover {
     justify-content: flex-start;
   }
 }
+
+/* Heatmap & Activity Highlights Layout */
+.heatmap-layout-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 1.5rem;
+}
+
+.heatmap-main-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.heatmap-side-col {
+  width: 280px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 700px) {
+  .heatmap-layout-row {
+    flex-direction: column;
+  }
+
+  .heatmap-side-col {
+    width: 100%;
+  }
+}
+
+/* Activity Highlights Component Styles */
+.activity-highlights-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.activity-card {
+  background-color: #ffffff;
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.activity-card-most {
+  border: 1.5px solid #15803d; /* Green accent border */
+}
+
+.activity-card-least {
+  border: 1.5px solid #9ca3af; /* Neutral grey border */
+}
+
+.activity-card-placeholder,
+.activity-card-empty {
+  border: 1px dashed var(--border-color);
+  background-color: #f9fafb;
+  padding: 1rem;
+}
+
+.activity-card-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dark);
+  margin: 0;
+}
+
+.activity-card-most .activity-card-title {
+  color: #15803d;
+}
+
+.activity-card-least .activity-card-title {
+  color: #4b5563;
+}
+
+.activity-habit-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.activity-habit-meta {
+  font-size: 0.825rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.25rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.activity-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  background-color: #f3f4f6;
+  color: var(--text-dark);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.activity-muted-text {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 0;
+}

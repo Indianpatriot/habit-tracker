@@ -9,9 +9,8 @@ const Navbar = () => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    // Clear dummy authentication token from localStorage
     localStorage.removeItem('token');
-    // Programmatic redirect using useNavigate()
+    localStorage.removeItem('user');
     navigate('/login');
   };
 
@@ -59,4 +58,3 @@ const Navbar = () => {
 };
 
 export default Navbar;
-

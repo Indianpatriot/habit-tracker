@@ -1,30 +1,39 @@
 import { useState, useEffect } from 'react';
 import Heatmap from '../components/Heatmap';
-import { getHeatmap } from '../api';
+import ActivityHighlights from '../components/ActivityHighlights';
+import { getHeatmap, getActivitySummary } from '../api';
 
 /**
  * HeatmapPage (/heatmap)
- * Displays the 90-day overall activity graph across all habits.
+ * Displays the 90-day activity matrix on the left and Most/Least active highlights on the right.
+ * Flex-row layout collapses into a vertical stack below 700px.
  */
 const HeatmapPage = () => {
   const [heatmapData, setHeatmapData] = useState([]);
+  const [activitySummary, setActivitySummary] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
-    getHeatmap().then((data) => {
-      if (isMounted) {
-        setHeatmapData(data);
+
+    Promise.all([getHeatmap(), getActivitySummary()])
+      .then(([heatmap, summary]) => {
+        if (!isMounted) return;
+        setHeatmapData(heatmap);
+        setActivitySummary(summary);
         setLoading(false);
-      }
-    });
+      })
+      .catch((err) => {
+        console.error('Failed to load heatmap data:', err);
+        if (isMounted) setLoading(false);
+      });
 
     return () => {
       isMounted = false;
     };
   }, []);
 
-  // Calculate summary metrics
+  // Summary statistics across the 90 days
   const totalCompletions = heatmapData.reduce((acc, curr) => acc + (curr.count || 0), 0);
   const activeDays = heatmapData.filter((item) => item.count > 0).length;
 
@@ -37,6 +46,7 @@ const HeatmapPage = () => {
         </div>
       </div>
 
+      {/* Top summary strip */}
       <div className="stats-strip" style={{ marginBottom: '1.5rem' }}>
         <div className="stat-box">
           <div className="stat-value">{totalCompletions}</div>
@@ -54,16 +64,34 @@ const HeatmapPage = () => {
         </div>
       </div>
 
+      {/* Main card with flex layout: Heatmap on left, ActivityHighlights on right */}
       <div className="card">
-        <h2 style={{ fontSize: '1.15rem', marginBottom: '1rem', fontWeight: 600 }}>
-          90-Day Contribution Graph
-        </h2>
         {loading ? (
           <div className="text-center text-muted" style={{ padding: '2rem' }}>
-            Loading heatmap...
+            Loading heatmap and activity highlights...
           </div>
         ) : (
-          <Heatmap data={heatmapData} />
+          <div className="heatmap-layout-row">
+            {/* Heatmap column */}
+            <div className="heatmap-main-col">
+              <h2 style={{ fontSize: '1.15rem', marginBottom: '1rem', fontWeight: 600 }}>
+                90-Day Contribution Graph
+              </h2>
+              <Heatmap data={heatmapData} />
+            </div>
+
+            {/* Activity Highlights column */}
+            <div className="heatmap-side-col">
+              <h2 style={{ fontSize: '1.15rem', marginBottom: '1rem', fontWeight: 600 }}>
+                Activity Highlights
+              </h2>
+              <ActivityHighlights
+                most={activitySummary?.most || null}
+                least={activitySummary?.least || null}
+                message={activitySummary?.message || null}
+              />
+            </div>
+          </div>
         )}
       </div>
     </div>
