@@ -110,3 +110,4 @@ npm run dev
 - Health endpoint: `curl http://localhost:5000/api/health` returns `{"status":"ok"}`.
 - Client tests: `npm run build` in `/client` builds cleanly with 0 errors.
 - Client linter: `npm run lint` in `/client` passes with 0 warnings and 0 errors.
+

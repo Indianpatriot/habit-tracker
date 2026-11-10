@@ -27,6 +27,9 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
+// Authentication routes
+app.use('/api/auth', require('./routes/authRoutes'));
+
 // Central error handling middleware (must be registered after routes)
 app.use(errorHandler);
 
