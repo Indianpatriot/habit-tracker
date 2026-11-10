@@ -69,3 +69,4 @@ ActivityHighlights.propTypes = {
 };
 
 export default ActivityHighlights;
+

@@ -134,3 +134,4 @@ export const getHabitSpecificHeatmap = (habitId) => {
     count: 0
   }));
 };
+
