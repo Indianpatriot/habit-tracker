@@ -11,6 +11,7 @@ import HeatmapPage from './pages/HeatmapPage';
 import AddHabitPage from './pages/AddHabitPage';
 import HabitDetail from './pages/HabitDetail';
 import EditHabit from './pages/EditHabit';
+import BadgesPage from './pages/BadgesPage';
 import NotFound from './pages/NotFound';
 
 /**
@@ -31,6 +32,7 @@ function App() {
             <Route element={<Layout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/heatmap" element={<HeatmapPage />} />
+              <Route path="/badges" element={<BadgesPage />} />
               <Route path="/habits/new" element={<AddHabitPage />} />
               <Route path="/habits/:id" element={<HabitDetail />} />
               <Route path="/habits/:id/edit" element={<EditHabit />} />

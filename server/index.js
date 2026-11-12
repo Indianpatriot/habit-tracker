@@ -32,6 +32,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/habits', require('./routes/habitRoutes'));
 app.use('/api/logs', require('./routes/logRoutes'));
+app.use('/api/badges', require('./routes/badgeRoutes'));
 
 // Central error handling middleware (must be registered after routes)
 app.use(errorHandler);

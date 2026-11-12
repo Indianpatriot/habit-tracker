@@ -199,3 +199,14 @@ export const undoDone = async (habitId, date) => {
   });
   return handleResponse(res);
 };
+
+/**
+ * Fetch achievement badges for logged-in user
+ */
+export const getBadges = async () => {
+  const res = await fetch(`${API_BASE_URL}/api/badges`, {
+    method: 'GET',
+    headers: getAuthHeaders()
+  });
+  return handleResponse(res);
+};

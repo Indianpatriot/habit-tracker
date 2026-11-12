@@ -41,6 +41,14 @@ const Navbar = () => {
             Heatmap
           </NavLink>
           <NavLink
+            to="/badges"
+            className={({ isActive }) =>
+              isActive ? 'nav-link active' : 'nav-link'
+            }
+          >
+            Badges
+          </NavLink>
+          <NavLink
             to="/habits/new"
             className={({ isActive }) =>
               isActive ? 'nav-link active' : 'nav-link'
