@@ -3,14 +3,29 @@ import PropTypes from 'prop-types';
 
 /**
  * HabitCard component
- * Displays habit information and action buttons (Mark Done / Undo / View / Edit).
- * Demonstrates child-to-parent communication via onMarkDone and onUndo callbacks.
+ * Displays habit information and action buttons (Mark Done toggle / View / Edit).
+ * Demonstrates child-to-parent communication via onToggleDone callback.
+ * Completion state is DERIVED from check-in data (habit.completedToday) to survive refresh.
  */
-const HabitCard = ({ habit, onMarkDone, onUndo }) => {
+const HabitCard = ({ habit, onToggleDone, onMarkDone, onUndo }) => {
   // Format creation date for display
   const createdDate = habit.createdAt
     ? new Date(habit.createdAt).toLocaleDateString()
     : 'Recently';
+
+  // Completion state derived from check-in data
+  const isDone = Boolean(habit.completedToday);
+
+  // Toggle handler with fallback to onMarkDone / onUndo
+  const handleToggle = () => {
+    if (onToggleDone) {
+      onToggleDone(habit._id, isDone);
+    } else if (isDone && onUndo) {
+      onUndo(habit._id);
+    } else if (!isDone && onMarkDone) {
+      onMarkDone(habit._id);
+    }
+  };
 
   return (
     <div className="habit-card">
@@ -22,23 +37,22 @@ const HabitCard = ({ habit, onMarkDone, onUndo }) => {
       </div>
 
       <div className="habit-actions">
-        {/* Child-to-parent callbacks */}
+        {/* Color-coded Mark Done / Done toggle button */}
         <button
           type="button"
-          className="btn btn-sm btn-success"
-          onClick={() => onMarkDone(habit._id)}
-          title="Mark habit done for today"
+          className={`btn btn-sm ${isDone ? 'btn-done' : 'btn-outline'}`}
+          aria-pressed={isDone ? 'true' : 'false'}
+          onClick={handleToggle}
+          title={isDone ? 'Click to undo completion for today' : 'Click to mark done for today'}
         >
-          ✓ Mark Done
-        </button>
-
-        <button
-          type="button"
-          className="btn btn-sm btn-outline"
-          onClick={() => onUndo(habit._id)}
-          title="Undo completion for today"
-        >
-          ↺ Undo
+          {isDone ? (
+            <>
+              <span className="btn-done-text">Done ✓</span>
+              <span className="btn-undo-text">Undo</span>
+            </>
+          ) : (
+            'Mark done'
+          )}
         </button>
 
         <Link
@@ -65,11 +79,12 @@ HabitCard.propTypes = {
   habit: PropTypes.shape({
     _id: PropTypes.string.isRequired,
     name: PropTypes.string.isRequired,
-    createdAt: PropTypes.string
+    createdAt: PropTypes.string,
+    completedToday: PropTypes.bool
   }).isRequired,
-  onMarkDone: PropTypes.func.isRequired,
-  onUndo: PropTypes.func.isRequired
+  onToggleDone: PropTypes.func,
+  onMarkDone: PropTypes.func,
+  onUndo: PropTypes.func
 };
 
 export default HabitCard;
-

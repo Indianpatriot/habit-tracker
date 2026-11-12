@@ -5,7 +5,7 @@ import PropTypes from 'prop-types';
  * Renders a 90-day activity matrix laid out by week columns and weekday rows.
  * Pads the first week so days align to Sunday-Saturday.
  */
-const Heatmap = ({ data }) => {
+const Heatmap = ({ data, selectedDate, onSelectDate }) => {
   if (!data || data.length === 0) {
     return <div className="text-center text-muted">No heatmap data available.</div>;
   }
@@ -123,21 +123,28 @@ const Heatmap = ({ data }) => {
           </text>
 
           {/* Activity cells */}
-          {cells.map((cell) => (
-            <rect
-              key={cell.date}
-              x={cell.x}
-              y={cell.y}
-              width={cellSize}
-              height={cellSize}
-              rx={2}
-              ry={2}
-              fill={cell.fillColor}
-              className="heatmap-cell"
-            >
-              <title>{`${cell.date}: ${cell.count} completion${cell.count === 1 ? '' : 's'}`}</title>
-            </rect>
-          ))}
+          {cells.map((cell) => {
+            const isSelected = selectedDate && cell.date === selectedDate;
+            return (
+              <rect
+                key={cell.date}
+                x={cell.x}
+                y={cell.y}
+                width={cellSize}
+                height={cellSize}
+                rx={2}
+                ry={2}
+                fill={cell.fillColor}
+                stroke={isSelected ? '#111827' : 'none'}
+                strokeWidth={isSelected ? 1.5 : 0}
+                style={{ cursor: onSelectDate ? 'pointer' : 'default' }}
+                onClick={() => onSelectDate && onSelectDate(cell.date)}
+                className="heatmap-cell"
+              >
+                <title>{`${cell.date}: ${cell.count} completion${cell.count === 1 ? '' : 's'}`}</title>
+              </rect>
+            );
+          })}
         </svg>
       </div>
 
@@ -164,7 +171,9 @@ Heatmap.propTypes = {
       date: PropTypes.string.isRequired,
       count: PropTypes.number.isRequired
     })
-  ).isRequired
+  ).isRequired,
+  selectedDate: PropTypes.string,
+  onSelectDate: PropTypes.func
 };
 
 export default Heatmap;

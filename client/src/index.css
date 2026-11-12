@@ -257,6 +257,35 @@ a:hover {
   background-color: #059669;
 }
 
+/* Mark-done toggle button color states */
+.btn-done {
+  background-color: var(--heat-4, #216e39);
+  color: #ffffff;
+  border-color: var(--heat-4, #216e39);
+}
+
+.btn-done:hover:not(:disabled) {
+  background-color: #16532b;
+  border-color: #16532b;
+  color: #ffffff;
+}
+
+.btn-done .btn-done-text {
+  display: inline;
+}
+
+.btn-done .btn-undo-text {
+  display: none;
+}
+
+.btn-done:hover:not(:disabled) .btn-done-text {
+  display: none;
+}
+
+.btn-done:hover:not(:disabled) .btn-undo-text {
+  display: inline;
+}
+
 /* Form Styles */
 .form-container {
   max-width: 440px;

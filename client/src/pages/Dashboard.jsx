@@ -50,7 +50,7 @@ const Dashboard = () => {
     }
   };
 
-  // Helper to format today's date in local YYYY-MM-DD
+  // Helper to format today's date in local/UTC YYYY-MM-DD
   const getTodayString = () => {
     const today = new Date();
     const y = today.getFullYear();
@@ -59,29 +59,42 @@ const Dashboard = () => {
     return `${y}-${m}-${d}`;
   };
 
-  // Child-to-parent callback: mark habit done in MongoDB Atlas
-  const handleMarkDone = async (habitId) => {
+  // Optimistic toggle check-in handler: updates UI immediately and rolls back on failure
+  const handleToggleDone = async (habitId, isCurrentlyDone) => {
+    const todayStr = getTodayString();
+    const target = habits.find((h) => h._id === habitId);
+    const habitName = target ? target.name : 'Habit';
+
+    // 1. Optimistic update: flip completedToday in state
+    setHabits((prev) =>
+      prev.map((h) =>
+        h._id === habitId ? { ...h, completedToday: !isCurrentlyDone } : h
+      )
+    );
+
+    // 2. Perform API call to sync with MongoDB Atlas
     try {
-      const todayStr = getTodayString();
-      await markDone(habitId, todayStr);
-      const target = habits.find((h) => h._id === habitId);
-      showNotification(`✓ "${target ? target.name : 'Habit'}" marked done for today!`);
+      if (isCurrentlyDone) {
+        await undoDone(habitId, todayStr);
+        showNotification(`↺ Undone completion for "${habitName}".`);
+      } else {
+        await markDone(habitId, todayStr);
+        showNotification(`✓ "${habitName}" marked done for today!`);
+      }
     } catch (err) {
-      showNotification(`Failed to mark habit: ${err.message}`);
+      // 3. Roll back on failure and notify user
+      setHabits((prev) =>
+        prev.map((h) =>
+          h._id === habitId ? { ...h, completedToday: isCurrentlyDone } : h
+        )
+      );
+      showNotification(`Failed to update "${habitName}": ${err.message}`);
     }
   };
 
-  // Child-to-parent callback: undo completion in MongoDB Atlas
-  const handleUndo = async (habitId) => {
-    try {
-      const todayStr = getTodayString();
-      await undoDone(habitId, todayStr);
-      const target = habits.find((h) => h._id === habitId);
-      showNotification(`↺ Undone completion for "${target ? target.name : 'Habit'}".`);
-    } catch (err) {
-      showNotification(`Failed to undo habit: ${err.message}`);
-    }
-  };
+  // Backward compatible callbacks
+  const handleMarkDone = (habitId) => handleToggleDone(habitId, false);
+  const handleUndo = (habitId) => handleToggleDone(habitId, true);
 
   const showNotification = (msg) => {
     setNotification(msg);
@@ -125,6 +138,7 @@ const Dashboard = () => {
             <HabitCard
               key={habit._id}
               habit={habit}
+              onToggleDone={handleToggleDone}
               onMarkDone={handleMarkDone}
               onUndo={handleUndo}
             />

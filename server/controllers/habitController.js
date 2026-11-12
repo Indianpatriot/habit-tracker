@@ -1,6 +1,12 @@
 const Habit = require('../models/Habit');
 const Log = require('../models/Log');
 
+// Helper to get today's UTC midnight date
+const getTodayUTCMidnight = () => {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+};
+
 // @desc    Get all habits for logged-in user (supports ?q= search filter)
 // @route   GET /api/habits
 // @access  Private
@@ -14,8 +20,22 @@ const getHabits = async (req, res, next) => {
       filter.name = { $regex: q.trim(), $options: 'i' };
     }
 
-    const habits = await Habit.find(filter).sort({ createdAt: -1 });
-    res.status(200).json(habits);
+    const habits = await Habit.find(filter).sort({ createdAt: -1 }).lean();
+
+    // Attach completion state for today derived from Log collection
+    const todayUTC = getTodayUTCMidnight();
+    const todayLogs = await Log.find({
+      userId: req.user._id,
+      date: todayUTC
+    });
+    const completedSet = new Set(todayLogs.map((l) => l.habitId.toString()));
+
+    const result = habits.map((h) => ({
+      ...h,
+      completedToday: completedSet.has(h._id.toString())
+    }));
+
+    res.status(200).json(result);
   } catch (error) {
     next(error);
   }
@@ -29,14 +49,25 @@ const getHabitById = async (req, res, next) => {
     const habit = await Habit.findOne({
       _id: req.params.id,
       userId: req.user._id
-    });
+    }).lean();
 
     if (!habit) {
       res.status(404);
       throw new Error('Habit not found');
     }
 
-    res.status(200).json(habit);
+    // Attach today completion status derived from Log collection
+    const todayUTC = getTodayUTCMidnight();
+    const todayLog = await Log.findOne({
+      habitId: habit._id,
+      userId: req.user._id,
+      date: todayUTC
+    });
+
+    res.status(200).json({
+      ...habit,
+      completedToday: Boolean(todayLog)
+    });
   } catch (error) {
     next(error);
   }
