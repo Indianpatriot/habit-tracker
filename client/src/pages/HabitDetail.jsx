@@ -11,6 +11,15 @@ const formatUTCDateString = (d) => {
   return `${year}-${month}-${day}`;
 };
 
+// Helper to format streak values with appropriate unit ("2 weeks", "5 days")
+const formatStreakUnit = (value, unit = 'days') => {
+  const count = Number(value) || 0;
+  if (unit === 'weeks') {
+    return count === 1 ? '1 week' : `${count} weeks`;
+  }
+  return count === 1 ? '1 day' : `${count} days`;
+};
+
 /**
  * HabitDetail Page (/habits/:id)
  * Displays habit metadata, streak statistics, and 90-day activity heatmap.
@@ -170,11 +179,11 @@ const HabitDetail = () => {
       {stats && (
         <div className="stats-strip">
           <div className="stat-box">
-            <div className="stat-value">{stats.currentStreak} 🔥</div>
+            <div className="stat-value">{formatStreakUnit(stats.currentStreak, stats.unit)} 🔥</div>
             <div className="stat-label">Current Streak</div>
           </div>
           <div className="stat-box">
-            <div className="stat-value">{stats.longestStreak} 🏆</div>
+            <div className="stat-value">{formatStreakUnit(stats.longestStreak, stats.unit)} 🏆</div>
             <div className="stat-label">Longest Streak</div>
           </div>
           <div className="stat-box">

@@ -5,7 +5,8 @@ const {
   getHabitById,
   createHabit,
   updateHabit,
-  deleteHabit
+  deleteHabit,
+  getHabitStreaks
 } = require('../controllers/habitController');
 const { getHabitStats } = require('../controllers/logController');
 const { protect } = require('../middleware/auth');
@@ -21,6 +22,9 @@ router.route('/:id')
   .get(getHabitById)
   .put(updateHabit)
   .delete(deleteHabit);
+
+// Habit streaks endpoint ({ current, longest, unit: 'days'|'weeks' })
+router.get('/:id/streaks', getHabitStreaks);
 
 // Habit streak and 30-day stats endpoint
 router.get('/:id/stats', getHabitStats);

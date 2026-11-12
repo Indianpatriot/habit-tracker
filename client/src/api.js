@@ -132,13 +132,24 @@ export const getActivitySummary = async () => {
 };
 
 /**
+ * Fetch streaks ({ current, longest, unit: 'days'|'weeks' }) for a habit
+ */
+export const getStreaks = async (habitId) => {
+  const res = await fetch(`${API_BASE_URL}/api/habits/${habitId}/streaks`, {
+    method: 'GET',
+    headers: getAuthHeaders()
+  });
+  return handleResponse(res);
+};
+
+/**
  * Create a new habit in MongoDB Atlas
  */
 export const addHabit = async (habitData) => {
   const res = await fetch(`${API_BASE_URL}/api/habits`, {
     method: 'POST',
     headers: getAuthHeaders(),
-    body: JSON.stringify({ name: habitData.name })
+    body: JSON.stringify(habitData)
   });
   return handleResponse(res);
 };
@@ -150,7 +161,7 @@ export const updateHabit = async (id, habitData) => {
   const res = await fetch(`${API_BASE_URL}/api/habits/${id}`, {
     method: 'PUT',
     headers: getAuthHeaders(),
-    body: JSON.stringify({ name: habitData.name })
+    body: JSON.stringify(habitData)
   });
   return handleResponse(res);
 };

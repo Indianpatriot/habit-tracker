@@ -1,10 +1,40 @@
 const Habit = require('../models/Habit');
 const Log = require('../models/Log');
+const { computeStreaksFromDB } = require('../services/streaks');
 
 // Helper to get today's UTC midnight date
 const getTodayUTCMidnight = () => {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+};
+
+// Validation helper for goal types and corresponding parameters
+const validateHabitGoal = (goalType, targetPerWeek, weekdays) => {
+  const validGoalTypes = ['daily', 'weekly_target', 'weekdays'];
+  if (goalType && !validGoalTypes.includes(goalType)) {
+    return 'Invalid goalType. Must be daily, weekly_target, or weekdays';
+  }
+
+  const effectiveGoalType = goalType || 'daily';
+
+  if (effectiveGoalType === 'weekly_target') {
+    const target = Number(targetPerWeek);
+    if (!Number.isInteger(target) || target < 1 || target > 7) {
+      return 'targetPerWeek must be an integer between 1 and 7 when goalType is weekly_target';
+    }
+  }
+
+  if (effectiveGoalType === 'weekdays') {
+    if (
+      !Array.isArray(weekdays) ||
+      weekdays.length === 0 ||
+      !weekdays.every((d) => Number.isInteger(Number(d)) && Number(d) >= 0 && Number(d) <= 6)
+    ) {
+      return 'weekdays must be a non-empty array with days 0-6 (0=Sunday) when goalType is weekdays';
+    }
+  }
+
+  return null;
 };
 
 // @desc    Get all habits for logged-in user (supports ?q= search filter)
@@ -73,12 +103,12 @@ const getHabitById = async (req, res, next) => {
   }
 };
 
-// @desc    Create a new habit
+// @desc    Create a new habit with goal settings
 // @route   POST /api/habits
 // @access  Private
 const createHabit = async (req, res, next) => {
   try {
-    const { name } = req.body;
+    const { name, goalType = 'daily', targetPerWeek, weekdays } = req.body;
 
     if (!name || !name.trim()) {
       res.status(400);
@@ -90,11 +120,25 @@ const createHabit = async (req, res, next) => {
       throw new Error('Habit name must be at least 2 characters');
     }
 
-    const habit = await Habit.create({
-      userId: req.user._id,
-      name: name.trim()
-    });
+    const goalError = validateHabitGoal(goalType, targetPerWeek, weekdays);
+    if (goalError) {
+      res.status(400);
+      throw new Error(goalError);
+    }
 
+    const habitData = {
+      userId: req.user._id,
+      name: name.trim(),
+      goalType
+    };
+
+    if (goalType === 'weekly_target') {
+      habitData.targetPerWeek = Number(targetPerWeek);
+    } else if (goalType === 'weekdays') {
+      habitData.weekdays = weekdays.map(Number);
+    }
+
+    const habit = await Habit.create(habitData);
     res.status(201).json(habit);
   } catch (error) {
     next(error);
@@ -106,7 +150,7 @@ const createHabit = async (req, res, next) => {
 // @access  Private
 const updateHabit = async (req, res, next) => {
   try {
-    const { name } = req.body;
+    const { name, goalType, targetPerWeek, weekdays } = req.body;
 
     if (!name || !name.trim()) {
       res.status(400);
@@ -128,9 +172,33 @@ const updateHabit = async (req, res, next) => {
       throw new Error('Habit not found');
     }
 
-    habit.name = name.trim();
-    const updated = await habit.save();
+    const effectiveGoalType = goalType !== undefined ? goalType : habit.goalType;
+    const effectiveTarget = targetPerWeek !== undefined ? targetPerWeek : habit.targetPerWeek;
+    const effectiveWeekdays = weekdays !== undefined ? weekdays : habit.weekdays;
 
+    const goalError = validateHabitGoal(effectiveGoalType, effectiveTarget, effectiveWeekdays);
+    if (goalError) {
+      res.status(400);
+      throw new Error(goalError);
+    }
+
+    habit.name = name.trim();
+    if (goalType !== undefined) {
+      habit.goalType = goalType;
+    }
+
+    if (effectiveGoalType === 'weekly_target') {
+      habit.targetPerWeek = Number(effectiveTarget);
+      habit.weekdays = undefined;
+    } else if (effectiveGoalType === 'weekdays') {
+      habit.weekdays = effectiveWeekdays.map(Number);
+      habit.targetPerWeek = undefined;
+    } else {
+      habit.targetPerWeek = undefined;
+      habit.weekdays = undefined;
+    }
+
+    const updated = await habit.save();
     res.status(200).json(updated);
   } catch (error) {
     next(error);
@@ -164,11 +232,27 @@ const deleteHabit = async (req, res, next) => {
   }
 };
 
+// @desc    Get streaks for a habit using MongoDB aggregation engine
+// @route   GET /api/habits/:id/streaks
+// @access  Private
+const getHabitStreaks = async (req, res, next) => {
+  try {
+    const streaks = await computeStreaksFromDB(req.params.id, req.user._id);
+    res.status(200).json(streaks);
+  } catch (error) {
+    if (error.statusCode) {
+      res.status(error.statusCode);
+    }
+    next(error);
+  }
+};
+
 module.exports = {
   getHabits,
   getHabitById,
   createHabit,
   updateHabit,
-  deleteHabit
+  deleteHabit,
+  getHabitStreaks,
+  validateHabitGoal
 };
-

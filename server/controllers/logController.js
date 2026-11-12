@@ -1,5 +1,6 @@
 const Log = require('../models/Log');
 const Habit = require('../models/Habit');
+const { computeStreaksFromDB } = require('../services/streaks');
 
 // Helper to format a Date into "YYYY-MM-DD" in UTC terms
 const formatUTCDateString = (d) => {
@@ -204,9 +205,13 @@ const getHabitStats = async (req, res, next) => {
 
     const percent = Math.round((last30Done / 30) * 100);
 
+    // Compute robust streaks using goal-type aware streak engine
+    const streaks = await computeStreaksFromDB(habitId, req.user._id, todayUTC);
+
     res.status(200).json({
-      currentStreak,
-      longestStreak,
+      currentStreak: streaks.current,
+      longestStreak: streaks.longest,
+      unit: streaks.unit,
       last30: {
         done: last30Done,
         percent
