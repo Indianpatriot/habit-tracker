@@ -33,6 +33,7 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/habits', require('./routes/habitRoutes'));
 app.use('/api/logs', require('./routes/logRoutes'));
 app.use('/api/badges', require('./routes/badgeRoutes'));
+app.use('/api/insights', require('./routes/insightRoutes'));
 
 // Central error handling middleware (must be registered after routes)
 app.use(errorHandler);

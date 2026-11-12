@@ -210,3 +210,28 @@ export const getBadges = async () => {
   });
   return handleResponse(res);
 };
+
+/**
+ * Fetch correlation for a pair of habits over a window of days
+ */
+export const getCorrelation = async (habitAId, habitBId, days = 90) => {
+  const res = await fetch(
+    `${API_BASE_URL}/api/insights/correlation?a=${encodeURIComponent(habitAId)}&b=${encodeURIComponent(habitBId)}&days=${days}`,
+    {
+      method: 'GET',
+      headers: getAuthHeaders()
+    }
+  );
+  return handleResponse(res);
+};
+
+/**
+ * Fetch top cross-habit correlations by lift
+ */
+export const getCorrelations = async (days = 90) => {
+  const res = await fetch(`${API_BASE_URL}/api/insights/correlations?days=${days}`, {
+    method: 'GET',
+    headers: getAuthHeaders()
+  });
+  return handleResponse(res);
+};

@@ -736,3 +736,93 @@ a:hover {
   border-radius: 9999px;
   transition: width 0.3s ease;
 }
+
+/* Insights & Correlation */
+.sentence-card {
+  border-left: 4px solid var(--primary);
+  background: #ffffff;
+}
+
+.sentence-text {
+  font-size: 1.15rem;
+  line-height: 1.5;
+  color: var(--text-dark);
+  flex: 1;
+}
+
+.sentence-highlight {
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.sentence-secondary {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.lift-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.lift-positive {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.lift-negative {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.top-correlations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.correlation-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  background: #ffffff;
+  transition: all 0.15s ease;
+}
+
+.correlation-item:hover {
+  background-color: #f9fafb;
+  border-color: #d1d5db;
+}
+
+.correlation-item.selected {
+  border-color: var(--primary);
+  background-color: #f0fdf4;
+}
+
+.correlation-rank {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  min-width: 24px;
+}
+
+.lift-pill {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.25rem 0.55rem;
+  border-radius: 4px;
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.footnote {
+  font-style: italic;
+}

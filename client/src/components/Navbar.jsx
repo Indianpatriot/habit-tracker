@@ -49,6 +49,14 @@ const Navbar = () => {
             Badges
           </NavLink>
           <NavLink
+            to="/insights"
+            className={({ isActive }) =>
+              isActive ? 'nav-link active' : 'nav-link'
+            }
+          >
+            Insights
+          </NavLink>
+          <NavLink
             to="/habits/new"
             className={({ isActive }) =>
               isActive ? 'nav-link active' : 'nav-link'
