@@ -194,3 +194,4 @@ module.exports = {
   getCorrelationForHabits,
   getTopCorrelations
 };
+

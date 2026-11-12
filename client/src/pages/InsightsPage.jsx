@@ -316,3 +316,4 @@ const InsightsPage = () => {
 };
 
 export default InsightsPage;
+

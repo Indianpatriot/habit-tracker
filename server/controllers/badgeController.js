@@ -15,3 +15,4 @@ const getBadges = async (req, res, next) => {
 module.exports = {
   getBadges
 };
+

@@ -9,3 +9,4 @@ router.use(protect);
 router.get('/', getBadges);
 
 module.exports = router;
+
