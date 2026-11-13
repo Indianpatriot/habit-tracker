@@ -10,3 +10,4 @@ router.get('/heatmap', getHeatmap);
 router.get('/activity', getActivitySummary);
 
 module.exports = router;
+
