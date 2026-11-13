@@ -123,7 +123,7 @@ const Dashboard = () => {
         <input
           type="search"
           className="filter-input"
-          placeholder="Filter habits by name (?q=)..."
+          placeholder="Filter habits by name"
           value={searchQuery}
           onChange={handleSearchChange}
           aria-label="Filter habits by name"
