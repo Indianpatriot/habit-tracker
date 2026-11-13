@@ -19,7 +19,11 @@ const PORT = process.env.PORT || 5000;
 connectDB();
 
 // Global middleware
-app.use(cors());
+const clientOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+app.use(cors({
+  origin: [clientOrigin, 'http://localhost:5173'],
+  credentials: true
+}));
 app.use(express.json());
 app.use(morgan('dev'));
 
@@ -32,6 +36,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/habits', require('./routes/habitRoutes'));
 app.use('/api/logs', require('./routes/logRoutes'));
+app.use('/api/stats', require('./routes/statsRoutes'));
 app.use('/api/badges', require('./routes/badgeRoutes'));
 app.use('/api/insights', require('./routes/insightRoutes'));
 

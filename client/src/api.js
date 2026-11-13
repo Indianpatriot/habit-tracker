@@ -37,8 +37,9 @@ export const register = async ({ name, email, password }) => {
   });
   const data = await handleResponse(res);
   if (data.token) {
+    const user = data.user || data;
     localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify({ _id: data._id, name: data.name, email: data.email }));
+    localStorage.setItem('user', JSON.stringify({ _id: user._id, name: user.name, email: user.email }));
   }
   return data;
 };
@@ -54,8 +55,9 @@ export const login = async ({ email, password }) => {
   });
   const data = await handleResponse(res);
   if (data.token) {
+    const user = data.user || data;
     localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify({ _id: data._id, name: data.name, email: data.email }));
+    localStorage.setItem('user', JSON.stringify({ _id: user._id, name: user.name, email: user.email }));
   }
   return data;
 };
@@ -99,8 +101,8 @@ export const getHabitById = async (id) => {
  */
 export const getHeatmap = async (habitId = null) => {
   const url = habitId
-    ? `${API_BASE_URL}/api/logs/heatmap?habitId=${encodeURIComponent(habitId)}`
-    : `${API_BASE_URL}/api/logs/heatmap`;
+    ? `${API_BASE_URL}/api/stats/heatmap?habitId=${encodeURIComponent(habitId)}`
+    : `${API_BASE_URL}/api/stats/heatmap`;
 
   const res = await fetch(url, {
     method: 'GET',
@@ -124,7 +126,7 @@ export const getStats = async (habitId) => {
  * Fetch most active and least active habit summary from MongoDB Atlas logs
  */
 export const getActivitySummary = async () => {
-  const res = await fetch(`${API_BASE_URL}/api/logs/activity-summary`, {
+  const res = await fetch(`${API_BASE_URL}/api/stats/activity`, {
     method: 'GET',
     headers: getAuthHeaders()
   });
@@ -181,10 +183,10 @@ export const deleteHabit = async (id) => {
  * Record a habit completion log for a date in MongoDB Atlas
  */
 export const markDone = async (habitId, date) => {
-  const res = await fetch(`${API_BASE_URL}/api/logs`, {
+  const res = await fetch(`${API_BASE_URL}/api/habits/${habitId}/logs`, {
     method: 'POST',
     headers: getAuthHeaders(),
-    body: JSON.stringify({ habitId, date })
+    body: JSON.stringify(date ? { date } : {})
   });
   return handleResponse(res);
 };
@@ -193,7 +195,7 @@ export const markDone = async (habitId, date) => {
  * Delete habit completion log for a date in MongoDB Atlas
  */
 export const undoDone = async (habitId, date) => {
-  const res = await fetch(`${API_BASE_URL}/api/logs/${habitId}?date=${encodeURIComponent(date)}`, {
+  const res = await fetch(`${API_BASE_URL}/api/habits/${habitId}/logs/${date}`, {
     method: 'DELETE',
     headers: getAuthHeaders()
   });

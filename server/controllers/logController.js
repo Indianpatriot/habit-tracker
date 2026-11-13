@@ -1,219 +1,269 @@
+const mongoose = require('mongoose');
 const Log = require('../models/Log');
 const Habit = require('../models/Habit');
-const { computeStreaksFromDB } = require('../services/streaks');
+const {
+  getHeatmapPipeline,
+  fillZeroDays,
+  formatUTCDate
+} = require('../analytics/heatmap');
+const {
+  getStreakAggregationPipeline,
+  computeStreaksFromRuns
+} = require('../analytics/streaks');
+const {
+  getActivityAggregationPipeline,
+  pickMostLeast
+} = require('../analytics/activity');
 
-// Helper to format a Date into "YYYY-MM-DD" in UTC terms
-const formatUTCDateString = (d) => {
-  const year = d.getUTCFullYear();
-  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(d.getUTCDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+// Helper to get today UTC midnight date
+const getTodayUTCMidnight = () => {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
 };
 
-// @desc    Mark a habit as completed for a given date
-// @route   POST /api/logs
+// Date validation helper for YYYY-MM-DD
+const isValidDateString = (str) => {
+  if (typeof str !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return false;
+  }
+  const [year, month, day] = str.split('-').map(Number);
+  const d = new Date(Date.UTC(year, month - 1, day));
+  return (
+    d.getUTCFullYear() === year &&
+    d.getUTCMonth() === month - 1 &&
+    d.getUTCDate() === day
+  );
+};
+
+// @desc    Record completion for a habit (idempotent upsert)
+// @route   POST /api/habits/:id/logs (also POST /api/logs)
 // @access  Private
 const markDone = async (req, res, next) => {
   try {
-    const { habitId, date } = req.body;
+    const habitId = req.params.id || req.body.habitId;
+    const userId = req.userId || req.user._id;
 
-    if (!habitId) {
+    if (!habitId || !mongoose.isValidObjectId(habitId)) {
       res.status(400);
-      throw new Error('Habit ID is required');
+      throw new Error('Valid habit ID is required');
     }
 
-    // Verify habit belongs to user
-    const habit = await Habit.findOne({ _id: habitId, userId: req.user._id });
+    const habit = await Habit.findOne({ _id: habitId, userId });
     if (!habit) {
       res.status(404);
       throw new Error('Habit not found');
     }
 
-    const targetDate = date || formatUTCDateString(new Date());
+    const todayUTC = getTodayUTCMidnight();
+    let targetDateStr = req.body && req.body.date;
 
-    // Upsert or create log (schema unique index prevents duplicates)
-    let log = await Log.findOne({
-      habitId,
-      userId: req.user._id,
-      date: targetDate
-    });
+    if (targetDateStr) {
+      if (!isValidDateString(targetDateStr)) {
+        res.status(400);
+        throw new Error('Invalid date format. Expected YYYY-MM-DD');
+      }
 
-    if (!log) {
-      log = await Log.create({
-        habitId,
-        userId: req.user._id,
-        date: targetDate
-      });
+      const [year, month, day] = targetDateStr.split('-').map(Number);
+      const targetDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+
+      if (targetDate.getTime() > todayUTC.getTime()) {
+        res.status(400);
+        throw new Error('Cannot log completions for future dates');
+      }
+    } else {
+      targetDateStr = formatUTCDate(todayUTC);
     }
 
-    res.status(201).json({ success: true, log });
+    const [year, month, day] = targetDateStr.split('-').map(Number);
+    const targetDateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+
+    // Idempotent upsert: updateOne with $setOnInsert and upsert: true
+    await Log.updateOne(
+      { habitId: habit._id, userId, date: targetDateObj },
+      { $setOnInsert: { habitId: habit._id, userId, date: targetDateObj } },
+      { upsert: true }
+    );
+
+    res.status(200).json({
+      habitId: String(habit._id),
+      date: targetDateStr,
+      done: true
+    });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Undo habit completion for a given date
-// @route   DELETE /api/logs/:habitId
+// @desc    Undo completion for a habit date (idempotent delete)
+// @route   DELETE /api/habits/:id/logs/:date (also DELETE /api/logs/:habitId)
 // @access  Private
 const undoDone = async (req, res, next) => {
   try {
-    const { habitId } = req.params;
-    const targetDate = req.query.date || req.body.date || formatUTCDateString(new Date());
+    const habitId = req.params.id || req.params.habitId;
+    const userId = req.userId || req.user._id;
+
+    if (!habitId || !mongoose.isValidObjectId(habitId)) {
+      res.status(400);
+      throw new Error('Valid habit ID is required');
+    }
+
+    const habit = await Habit.findOne({ _id: habitId, userId });
+    if (!habit) {
+      res.status(404);
+      throw new Error('Habit not found');
+    }
+
+    const dateParam = req.params.date || (req.query && req.query.date) || (req.body && req.body.date);
+    const targetDateStr = dateParam || formatUTCDate(getTodayUTCMidnight());
+
+    if (!isValidDateString(targetDateStr)) {
+      res.status(400);
+      throw new Error('Invalid date format. Expected YYYY-MM-DD');
+    }
+
+    const [year, month, day] = targetDateStr.split('-').map(Number);
+    const targetDateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
 
     await Log.deleteOne({
-      habitId,
-      userId: req.user._id,
-      date: targetDate
+      habitId: habit._id,
+      userId,
+      date: targetDateObj
     });
 
-    res.status(200).json({ success: true, habitId, date: targetDate });
+    res.status(200).json({
+      habitId: String(habit._id),
+      date: targetDateStr,
+      done: false
+    });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Get 90-day heatmap data from MongoDB Atlas
-// @route   GET /api/logs/heatmap
+// @desc    Get log dates for a habit within an optional date range
+// @route   GET /api/habits/:id/logs?from=&to=
+// @access  Private
+const getHabitLogs = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId || req.user._id;
+
+    if (!id || !mongoose.isValidObjectId(id)) {
+      res.status(400);
+      throw new Error('Valid habit ID is required');
+    }
+
+    const habit = await Habit.findOne({ _id: id, userId });
+    if (!habit) {
+      res.status(404);
+      throw new Error('Habit not found');
+    }
+
+    const filter = { habitId: habit._id, userId };
+
+    if (req.query.from || req.query.to) {
+      filter.date = {};
+      if (req.query.from) {
+        if (!isValidDateString(req.query.from)) {
+          res.status(400);
+          throw new Error('Invalid from date format. Expected YYYY-MM-DD');
+        }
+        const [y, m, d] = req.query.from.split('-').map(Number);
+        filter.date.$gte = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+      }
+      if (req.query.to) {
+        if (!isValidDateString(req.query.to)) {
+          res.status(400);
+          throw new Error('Invalid to date format. Expected YYYY-MM-DD');
+        }
+        const [y, m, d] = req.query.to.split('-').map(Number);
+        filter.date.$lte = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+      }
+    }
+
+    const logs = await Log.find(filter).sort({ date: 1 });
+    const dates = logs.map((l) => formatUTCDate(l.date));
+
+    res.status(200).json(dates);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get 90-day heatmap data derived from MongoDB aggregation
+// @route   GET /api/stats/heatmap?habitId= (also GET /api/logs/heatmap)
 // @access  Private
 const getHeatmap = async (req, res, next) => {
   try {
     const { habitId } = req.query;
+    const userId = req.userId || req.user._id;
 
-    // Generate 90-day date range ending today UTC
-    const today = new Date();
-    const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+    if (habitId && !mongoose.isValidObjectId(habitId)) {
+      res.status(400);
+      throw new Error('Invalid habit ID');
+    }
 
+    const todayUTC = getTodayUTCMidnight();
     const startDateUTC = new Date(todayUTC);
     startDateUTC.setUTCDate(todayUTC.getUTCDate() - 89);
 
-    const filter = {
-      userId: req.user._id,
-      date: { $gte: startDateUTC, $lte: todayUTC }
-    };
+    const pipeline = getHeatmapPipeline(userId, habitId, startDateUTC, todayUTC);
+    const rawItems = await Log.aggregate(pipeline);
 
-    if (habitId) {
-      filter.habitId = habitId;
-    }
+    // Pure helper: guarantees exactly 90 days ending today UTC with 0 for missing days
+    const result = fillZeroDays(rawItems, todayUTC);
 
-    const logs = await Log.find(filter);
-
-    // Group logs by YYYY-MM-DD
-    const countsByDate = {};
-    logs.forEach((log) => {
-      const dateStr = log.date;
-      countsByDate[dateStr] = (countsByDate[dateStr] || 0) + 1;
-    });
-
-    // Build exactly 90 entries ending today
-    const items = [];
-    for (let i = 89; i >= 0; i--) {
-      const d = new Date(todayUTC);
-      d.setUTCDate(todayUTC.getUTCDate() - i);
-      const dateStr = formatUTCDateString(d);
-      const rawCount = countsByDate[dateStr] || 0;
-
-      items.push({
-        date: dateStr,
-        count: habitId ? (rawCount > 0 ? 1 : 0) : Math.min(rawCount, 4)
-      });
-    }
-
-    res.status(200).json(items);
+    res.status(200).json(result);
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Get streak and 30-day stats for a habit from MongoDB Atlas
+// @desc    Get habit streaks and last 30-day stats using MongoDB window fields aggregation
 // @route   GET /api/habits/:id/stats
 // @access  Private
 const getHabitStats = async (req, res, next) => {
   try {
-    const habitId = req.params.id;
+    const { id } = req.params;
+    const userId = req.userId || req.user._id;
 
-    const habit = await Habit.findOne({ _id: habitId, userId: req.user._id });
+    if (!id || !mongoose.isValidObjectId(id)) {
+      res.status(400);
+      throw new Error('Invalid habit ID');
+    }
+
+    const habit = await Habit.findOne({ _id: id, userId });
     if (!habit) {
       res.status(404);
       throw new Error('Habit not found');
     }
 
-    const logs = await Log.find({ habitId, userId: req.user._id }).sort({ date: 1 });
-    const logDatesSet = new Set(logs.map((l) => l.date));
+    // Run gaps-and-islands streak aggregation
+    const pipeline = getStreakAggregationPipeline(userId, id);
+    const runs = await Log.aggregate(pipeline);
 
-    const now = new Date();
-    const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    const todayStr = formatUTCDateString(todayUTC);
+    const todayUTC = getTodayUTCMidnight();
+    const yesterdayUTC = new Date(Date.UTC(todayUTC.getUTCFullYear(), todayUTC.getUTCMonth(), todayUTC.getUTCDate() - 1));
 
-    const yesterdayUTC = new Date(todayUTC);
-    yesterdayUTC.setUTCDate(todayUTC.getUTCDate() - 1);
-    const yesterdayStr = formatUTCDateString(yesterdayUTC);
+    const { currentStreak, longestStreak } = computeStreaksFromRuns(runs, todayUTC, yesterdayUTC);
 
-    let currentStreak = 0;
-    let checkDate = new Date(todayUTC);
+    // Last 30 days stats: date >= today-29 days
+    const thirtyDaysAgo = new Date(todayUTC);
+    thirtyDaysAgo.setUTCDate(todayUTC.getUTCDate() - 29);
 
-    if (logDatesSet.has(todayStr)) {
-      while (logDatesSet.has(formatUTCDateString(checkDate))) {
-        currentStreak++;
-        checkDate.setUTCDate(checkDate.getUTCDate() - 1);
-      }
-    } else if (logDatesSet.has(yesterdayStr)) {
-      checkDate = new Date(yesterdayUTC);
-      while (logDatesSet.has(formatUTCDateString(checkDate))) {
-        currentStreak++;
-        checkDate.setUTCDate(checkDate.getUTCDate() - 1);
-      }
-    }
+    const done = await Log.countDocuments({
+      habitId: habit._id,
+      userId,
+      date: { $gte: thirtyDaysAgo, $lte: todayUTC }
+    });
 
-    let longestStreak = 0;
-    let currentRun = 0;
-    let previousDate = null;
-
-    const sortedUniqueDays = Array.from(logDatesSet)
-      .map((dStr) => {
-        const [y, m, d] = dStr.split('-').map(Number);
-        return new Date(Date.UTC(y, m - 1, d)).getTime();
-      })
-      .sort((a, b) => a - b);
-
-    const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-    for (const time of sortedUniqueDays) {
-      if (previousDate === null) {
-        currentRun = 1;
-      } else {
-        const diffDays = Math.round((time - previousDate) / MS_PER_DAY);
-        if (diffDays === 1) {
-          currentRun++;
-        } else if (diffDays > 1) {
-          currentRun = 1;
-        }
-      }
-      previousDate = time;
-      if (currentRun > longestStreak) {
-        longestStreak = currentRun;
-      }
-    }
-
-    let last30Done = 0;
-    for (let i = 0; i < 30; i++) {
-      const d = new Date(todayUTC);
-      d.setUTCDate(todayUTC.getUTCDate() - i);
-      if (logDatesSet.has(formatUTCDateString(d))) {
-        last30Done++;
-      }
-    }
-
-    const percent = Math.round((last30Done / 30) * 100);
-
-    // Compute robust streaks using goal-type aware streak engine
-    const streaks = await computeStreaksFromDB(habitId, req.user._id, todayUTC);
+    const percent = Math.round((done / 30) * 100);
 
     res.status(200).json({
-      currentStreak: streaks.current,
-      longestStreak: streaks.longest,
-      unit: streaks.unit,
+      currentStreak,
+      longestStreak,
       last30: {
-        done: last30Done,
+        done,
         percent
       }
     });
@@ -222,13 +272,15 @@ const getHabitStats = async (req, res, next) => {
   }
 };
 
-// @desc    Get most and least active habit summary over last 90 days from real MongoDB logs
-// @route   GET /api/logs/activity-summary
+// @desc    Get most and least active habit summary over last 90 days from MongoDB aggregation
+// @route   GET /api/stats/activity (also GET /api/logs/activity-summary)
 // @access  Private
 const getActivitySummary = async (req, res, next) => {
   try {
-    const habits = await Habit.find({ userId: req.user._id });
+    const userId = req.userId || req.user._id;
 
+    // Fetch user's habits
+    const habits = await Habit.find({ userId }).lean();
     if (!habits || habits.length === 0) {
       return res.status(200).json({
         most: null,
@@ -237,61 +289,17 @@ const getActivitySummary = async (req, res, next) => {
       });
     }
 
-    // 90-day date range ending today UTC
-    const today = new Date();
-    const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+    const todayUTC = getTodayUTCMidnight();
     const startDateUTC = new Date(todayUTC);
     startDateUTC.setUTCDate(todayUTC.getUTCDate() - 89);
 
-    // Fetch logs in last 90 days for this user
-    const logs = await Log.find({
-      userId: req.user._id,
-      date: { $gte: startDateUTC, $lte: todayUTC }
-    });
+    const pipeline = getActivityAggregationPipeline(userId, startDateUTC, todayUTC);
+    const counts = await Log.aggregate(pipeline);
 
-    // Count logs per habit
-    const countsMap = {};
-    logs.forEach((log) => {
-      const hId = String(log.habitId);
-      countsMap[hId] = (countsMap[hId] || 0) + 1;
-    });
+    // Pure helper: merges habits with counts and applies Phase 1 tie-breaking rules
+    const result = pickMostLeast(counts, habits);
 
-    const items = habits.map((h) => {
-      const count = countsMap[String(h._id)] || 0;
-      return {
-        habitId: String(h._id),
-        name: h.name,
-        count,
-        percent: Math.round((count / 90) * 100)
-      };
-    });
-
-    if (items.length === 1) {
-      return res.status(200).json({
-        most: items[0],
-        least: null,
-        message: 'Add more habits to compare'
-      });
-    }
-
-    const allSame = items.every((h) => h.count === items[0].count);
-    if (allSame) {
-      const sortedAlpha = [...items].sort((a, b) => a.name.localeCompare(b.name));
-      return res.status(200).json({
-        most: sortedAlpha[0],
-        least: null,
-        message: 'All habits are equally active'
-      });
-    }
-
-    const sortedForMost = [...items].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-    const sortedForLeast = [...items].sort((a, b) => a.count - b.count || a.name.localeCompare(b.name));
-
-    return res.status(200).json({
-      most: sortedForMost[0],
-      least: sortedForLeast[0],
-      message: null
-    });
+    res.status(200).json(result);
   } catch (error) {
     next(error);
   }
@@ -300,6 +308,7 @@ const getActivitySummary = async (req, res, next) => {
 module.exports = {
   markDone,
   undoDone,
+  getHabitLogs,
   getHeatmap,
   getHabitStats,
   getActivitySummary

@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Habit = require('../models/Habit');
 const Log = require('../models/Log');
 const { computeStreaksFromDB } = require('../services/streaks');
@@ -43,7 +44,8 @@ const validateHabitGoal = (goalType, targetPerWeek, weekdays) => {
 const getHabits = async (req, res, next) => {
   try {
     const { q } = req.query;
-    const filter = { userId: req.user._id };
+    const userId = req.userId || req.user._id;
+    const filter = { userId };
 
     // Case-insensitive name filter if query string provided
     if (q && q.trim()) {
@@ -55,7 +57,7 @@ const getHabits = async (req, res, next) => {
     // Attach completion state for today derived from Log collection
     const todayUTC = getTodayUTCMidnight();
     const todayLogs = await Log.find({
-      userId: req.user._id,
+      userId,
       date: todayUTC
     });
     const completedSet = new Set(todayLogs.map((l) => l.habitId.toString()));
@@ -76,9 +78,16 @@ const getHabits = async (req, res, next) => {
 // @access  Private
 const getHabitById = async (req, res, next) => {
   try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      res.status(400);
+      throw new Error('Invalid habit ID');
+    }
+
+    const userId = req.userId || req.user._id;
     const habit = await Habit.findOne({
-      _id: req.params.id,
-      userId: req.user._id
+      _id: id,
+      userId
     }).lean();
 
     if (!habit) {
@@ -90,7 +99,7 @@ const getHabitById = async (req, res, next) => {
     const todayUTC = getTodayUTCMidnight();
     const todayLog = await Log.findOne({
       habitId: habit._id,
-      userId: req.user._id,
+      userId,
       date: todayUTC
     });
 
@@ -110,14 +119,28 @@ const createHabit = async (req, res, next) => {
   try {
     const { name, goalType = 'daily', targetPerWeek, weekdays } = req.body;
 
-    if (!name || !name.trim()) {
+    if (!name || typeof name !== 'string' || !name.trim()) {
       res.status(400);
       throw new Error('Habit name is required');
     }
 
-    if (name.trim().length < 2) {
+    const trimmedName = name.trim();
+    if (trimmedName.length < 2) {
       res.status(400);
       throw new Error('Habit name must be at least 2 characters');
+    }
+
+    const userId = req.userId || req.user._id;
+
+    // Check duplicate name for this user (case-insensitive) -> 409 Conflict
+    const escapedName = trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const existing = await Habit.findOne({
+      userId,
+      name: { $regex: new RegExp(`^${escapedName}$`, 'i') }
+    });
+    if (existing) {
+      res.status(409);
+      throw new Error('Habit with this name already exists');
     }
 
     const goalError = validateHabitGoal(goalType, targetPerWeek, weekdays);
@@ -127,8 +150,8 @@ const createHabit = async (req, res, next) => {
     }
 
     const habitData = {
-      userId: req.user._id,
-      name: name.trim(),
+      userId,
+      name: trimmedName,
       goalType
     };
 
@@ -150,26 +173,47 @@ const createHabit = async (req, res, next) => {
 // @access  Private
 const updateHabit = async (req, res, next) => {
   try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      res.status(400);
+      throw new Error('Invalid habit ID');
+    }
+
     const { name, goalType, targetPerWeek, weekdays } = req.body;
 
-    if (!name || !name.trim()) {
+    if (!name || typeof name !== 'string' || !name.trim()) {
       res.status(400);
       throw new Error('Habit name is required');
     }
 
-    if (name.trim().length < 2) {
+    const trimmedName = name.trim();
+    if (trimmedName.length < 2) {
       res.status(400);
       throw new Error('Habit name must be at least 2 characters');
     }
 
+    const userId = req.userId || req.user._id;
+
     const habit = await Habit.findOne({
-      _id: req.params.id,
-      userId: req.user._id
+      _id: id,
+      userId
     });
 
     if (!habit) {
       res.status(404);
       throw new Error('Habit not found');
+    }
+
+    // Check duplicate name for this user (case-insensitive, excluding current habit) -> 409
+    const escapedName = trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const existing = await Habit.findOne({
+      userId,
+      _id: { $ne: id },
+      name: { $regex: new RegExp(`^${escapedName}$`, 'i') }
+    });
+    if (existing) {
+      res.status(409);
+      throw new Error('Habit with this name already exists');
     }
 
     const effectiveGoalType = goalType !== undefined ? goalType : habit.goalType;
@@ -182,7 +226,7 @@ const updateHabit = async (req, res, next) => {
       throw new Error(goalError);
     }
 
-    habit.name = name.trim();
+    habit.name = trimmedName;
     if (goalType !== undefined) {
       habit.goalType = goalType;
     }
@@ -210,9 +254,16 @@ const updateHabit = async (req, res, next) => {
 // @access  Private
 const deleteHabit = async (req, res, next) => {
   try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      res.status(400);
+      throw new Error('Invalid habit ID');
+    }
+
+    const userId = req.userId || req.user._id;
     const habit = await Habit.findOne({
-      _id: req.params.id,
-      userId: req.user._id
+      _id: id,
+      userId
     });
 
     if (!habit) {
@@ -226,7 +277,8 @@ const deleteHabit = async (req, res, next) => {
     // Cascade delete: remove all completion logs associated with this habit
     await Log.deleteMany({ habitId: habit._id });
 
-    res.status(200).json({ success: true, id: req.params.id });
+    // Step 2 spec: Return 204
+    res.status(204).send();
   } catch (error) {
     next(error);
   }

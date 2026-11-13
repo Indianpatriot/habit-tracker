@@ -1,13 +1,18 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// Helper to sign JWT token with user id
-const generateToken = (id) => {
+// Helper to sign JWT token with payload { userId }, expiring in 7 days
+const generateToken = (userId) => {
   return jwt.sign(
-    { id },
+    { userId },
     process.env.JWT_SECRET || 'supersecretphase2jwtkey12345',
-    { expiresIn: '30d' }
+    { expiresIn: '7d' }
   );
+};
+
+// Email format regex validation
+const isValidEmail = (email) => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 };
 
 // @desc    Register a new user
@@ -17,41 +22,51 @@ const registerUser = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
 
-    if (!name || !email || !password) {
+    // Validate name (required, min 1 char non-whitespace)
+    if (!name || typeof name !== 'string' || !name.trim()) {
       res.status(400);
-      throw new Error('Please provide name, email, and password');
+      throw new Error('Name is required');
     }
 
-    if (password.length < 6) {
+    // Validate email format
+    if (!email || typeof email !== 'string' || !isValidEmail(email.trim())) {
+      res.status(400);
+      throw new Error('Please provide a valid email address');
+    }
+
+    // Validate password (min 6 characters)
+    if (!password || typeof password !== 'string' || password.length < 6) {
       res.status(400);
       throw new Error('Password must be at least 6 characters');
     }
 
-    // Check if user already exists
-    const userExists = await User.findOne({ email: email.toLowerCase() });
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Check for duplicate email -> 409 Conflict
+    const userExists = await User.findOne({ email: normalizedEmail });
     if (userExists) {
-      res.status(400);
-      throw new Error('User already exists with this email');
+      res.status(409);
+      throw new Error('Email already registered');
     }
 
-    // Create user (password will be hashed via pre-save hook)
+    // Create user (password is hashed by User schema pre-save hook using bcryptjs)
     const user = await User.create({
-      name,
-      email: email.toLowerCase(),
+      name: name.trim(),
+      email: normalizedEmail,
       password
     });
 
-    if (user) {
-      res.status(201).json({
+    const token = generateToken(user._id);
+
+    // Return token and sanitized user object (never return password)
+    res.status(201).json({
+      token,
+      user: {
         _id: user._id,
         name: user.name,
-        email: user.email,
-        token: generateToken(user._id)
-      });
-    } else {
-      res.status(400);
-      throw new Error('Invalid user data');
-    }
+        email: user.email
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -64,25 +79,39 @@ const loginUser = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
+    // Both email and password must be provided
     if (!email || !password) {
       res.status(400);
       throw new Error('Please provide email and password');
     }
 
-    // Find user by lowercase email
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail });
 
-    if (user && (await user.matchPassword(password))) {
-      res.status(200).json({
+    // Same generic error message for both wrong email and wrong password
+    const genericErrorMessage = 'Invalid email or password';
+
+    if (!user) {
+      res.status(401);
+      throw new Error(genericErrorMessage);
+    }
+
+    const isMatch = await user.matchPassword(password);
+    if (!isMatch) {
+      res.status(401);
+      throw new Error(genericErrorMessage);
+    }
+
+    const token = generateToken(user._id);
+
+    res.status(200).json({
+      token,
+      user: {
         _id: user._id,
         name: user.name,
-        email: user.email,
-        token: generateToken(user._id)
-      });
-    } else {
-      res.status(401);
-      throw new Error('Invalid email or password');
-    }
+        email: user.email
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -93,6 +122,7 @@ const loginUser = async (req, res, next) => {
 // @access  Private
 const getMe = async (req, res, next) => {
   try {
+    // req.user attached by protect middleware, password excluded
     res.status(200).json(req.user);
   } catch (error) {
     next(error);
@@ -104,4 +134,3 @@ module.exports = {
   loginUser,
   getMe
 };
-

@@ -2,193 +2,153 @@
 
 > **Course**: Full Stack Application Development (MCA, RVCE)  
 > **Repository**: [https://github.com/Indianpatriot/habit-tracker](https://github.com/Indianpatriot/habit-tracker)  
-> **Stack**: MongoDB Atlas + Express + React 19 + Node.js (MERN)
+> **Stack**: MongoDB Atlas + Express + React 19 + Node.js 20 (MERN)
 
-HabitGraph is a full-stack habit tracking web application featuring GitHub-style streak heatmaps, non-continuous goal streaks, computed achievement badges, and cross-habit correlation insights built with clean MERN architecture strictly adhering to RVCE MCA course constraints.
-
----
-
-## Technical Specifications & Features
-
-1. **Frontend Architecture**:
-   - **Language**: Plain JavaScript + JSX (Zero TypeScript).
-   - **Styles**: Plain CSS files only (`client/src/index.css`) — no Tailwind, no shadcn, no UI frameworks.
-   - **Framework & Router**: Vite + React 19 + `react-router-dom` (v7) with nested route structure.
-   - **Component Patterns**:
-     - **Class Components**: `AddHabitForm` uses `this.state` and `this.setState` for controlled state, goal-type selections, and validation; `ErrorBoundary` uses `getDerivedStateFromError` and `componentDidCatch`.
-     - **Child-to-Parent Communication**: `HabitCard` communicates check-in toggles via `onToggleDone` callbacks.
-     - **URL Query Synchronization**: `Dashboard` binds habit filtering directly to `?q=` using the `useSearchParams` hook.
-     - **Type Safety**: Runtime validation via `prop-types` implemented on every component accepting props.
-   - **Pure SVG Visualization**: `Heatmap.jsx` renders a 90-day matrix in weekly columns (`x = weekIndex * cell`, `y = weekday * cell`) with Sunday–Saturday weekday offset padding, 5 green shades (`#ebedf0` to `#216e39`), month labels, weekday axes, cell selection, and `<title>` tooltips with **zero external chart or heatmap libraries**.
-
-2. **Backend Architecture**:
-   - **Modular CommonJS**: All server code uses `require` and `module.exports`.
-   - **Security**: Passwords hashed with `bcryptjs` salt rounds; authenticated endpoints protected via JWT Bearer token middleware (`server/middleware/auth.js`).
-   - **Central Error Handling**: Express central middleware ([`server/middleware/errorHandler.js`](server/middleware/errorHandler.js)) ensuring clean `{ message }` JSON responses with appropriate HTTP status codes.
-
-3. **Mongoose Models & MongoDB Atlas**:
-   - **User**: `name`, `email` (unique, lowercase, trim), `password` (hashed with bcrypt, minlength 6), `createdAt`.
-   - **Habit**: `userId` (ObjectId ref User), `name` (trim, minlength 2), `goalType` (`'daily'` | `'weekly_target'` | `'weekdays'`), `targetPerWeek` (1-7), `weekdays` (array of numbers 0-6), `createdAt`.
-   - **Log**:
-     - `habitId`: ObjectId ref Habit.
-     - `userId`: ObjectId ref User.
-     - `date`: Custom **setter** normalising any incoming date to UTC midnight (`00:00:00.000Z`) avoiding timezone shifts; custom **getter** returning `"YYYY-MM-DD"` string (with `{ toJSON: { getters: true } }`).
-     - **Compound Unique Index**: `{ habitId: 1, date: 1 }` preventing duplicate habit check-ins on the same day.
+HabitGraph is a production-grade full-stack habit tracking application featuring GitHub-style streak heatmaps, gap-and-islands streak calculation with MongoDB aggregation window fields, computed achievement badges, and cross-habit correlation insights built strictly adhering to RVCE MCA course constraints.
 
 ---
 
-## Core Features & Modules
+## Quickstart & Local Setup
 
-### 1. Mark-Done Completion Toggle (Bug/UX Fix)
-- **Visual State**:
-  - **Not done today**: Neutral outline button (`.btn-outline`), label `"Mark done"`, `aria-pressed="false"`.
-  - **Done today**: Solid dark green button (`.btn-done`, matching heatmap's darkest green `#216e39`), label `"Done ✓"`, `aria-pressed="true"`.
-  - **Hover Action**: Hovering on a completed button reveals `"Undo"`. Clicking again toggles un-marking.
-- **Derived State**: Check-in state is derived directly from MongoDB log data for the selected date, surviving page refreshes and staying synchronized with the heatmap cell.
-- **Optimistic Updates**: Changes reflect instantly on click and automatically roll back with an error alert if the network request fails.
+### 1. Prerequisites
+- **Node.js**: v20+
+- **npm**: v9+
+- A **MongoDB Atlas** cluster connection URI
 
-### 2. Non-Continuous Goals & Streak Engine
-- **Flexible Goal Types**:
-  - `daily`: Consecutive calendar days with a check-in (unit: `"days"`).
-  - `weekly_target`: Consecutive Monday-based weeks meeting `targetPerWeek` distinct check-in days (unit: `"weeks"`).
-  - `weekdays`: Scheduled weekdays (e.g. Mon/Wed/Fri). Unscheduled days are skipped (they neither extend nor break streaks). Missed scheduled days break the streak (unit: `"days"`).
-- **In-Progress Protection**: Active streaks do not break prematurely while today or the current week is still in progress.
-- **MongoDB Aggregation Engine**:
-  - Daily & weekly targets compute streaks via the **gaps-and-islands** pipeline (`$dateTrunc` with `startOfWeek: 'monday'`, `$setWindowFields` with `$documentNumber`, grouped by `periodIndex - rank`).
-  - Weekdays aggregate distinct check-in dates and reduce in JS to cleanly skip unscheduled days.
-- **Display**: Streak cards explicitly display the value alongside its unit (e.g. `"2 weeks"`, `"5 days"`).
+### 2. Clone and Install Dependencies
+```bash
+# Clone the repository
+git clone https://github.com/Indianpatriot/habit-tracker.git
+cd habit-tracker
 
-### 3. Achievement Badges (`/badges`)
-Computed dynamically on demand from check-in logs (no auxiliary database collection):
-- `first_checkin`: First check-in ever recorded.
-- `streak_7_days`: Longest streak $\ge 7$ days on any daily or weekdays habit.
-- `streak_30_days`: Longest streak $\ge 30$ days on any daily or weekdays habit.
-- `streak_4_weeks`: Longest streak $\ge 4$ weeks on any weekly target habit.
-- `checkins_100`: 100 total check-ins across all habits.
-- `comeback`: A check-in made after a gap of $\ge 7$ days on the same habit.
-- **UI Presentation**: Earned badges show full color styling and the exact date earned; locked badges are greyed out with dynamic progress bars (e.g. `"42 / 100"`).
+# Install server dependencies
+cd server
+npm install
 
-### 4. Cross-Habit Correlation Pipeline (`/insights`)
-- **Single Aggregation Pipeline**: Scoped to the user across a configurable window (default 90 days, max 365). Groups by calendar day with `$addToSet` of habit IDs, derives boolean flags `doneA` / `doneB`, and groups by `doneA` to compute:
-  - $P(B|A) = \frac{\text{both}}{\text{daysA}}$
-  - $P(B|\neg A) = \frac{\text{daysB} - \text{both}}{\text{totalDays} - \text{daysA}}$
-  - $\text{Lift} = \frac{P(B|A)}{P(B|\neg A)}$
-- **Statistical Significance Guard**: Requires $\text{daysA} \ge 10$ and $(\text{totalDays} - \text{daysA}) \ge 10$. If insufficient data, displays `"Not enough data yet"` instead of misleading percentages.
-- **Interactive UI**: Habit pair dropdowns, natural sentence cards (e.g. *"On days you did Workout, you also did Read 80% of the time (vs 20% on other days)"*), top 5 correlated habit pairs by lift, and the required footnote: *"Correlation is not causation."*
+# Install client dependencies
+cd ../client
+npm install
+cd ..
+```
 
----
+### 3. Configure Environment Variables
+Copy `.env.example` to `.env` in both `server/` and `client/`:
 
-## REST API Reference
+**Server Configuration (`server/.env`)**:
+```env
+PORT=5000
+MONGO_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/habitgraph?retryWrites=true&w=majority
+JWT_SECRET=supersecretphase2jwtkey12345678901234567890
+CLIENT_ORIGIN=http://localhost:5173
+```
 
-### Authentication (`/api/auth`)
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| `POST` | `/api/auth/register` | Public | Register new user, hash password, return JWT |
-| `POST` | `/api/auth/login` | Public | Authenticate user, return JWT |
-| `GET` | `/api/auth/me` | Private | Retrieve current user profile |
+**Client Configuration (`client/.env`)**:
+```env
+VITE_API_URL=http://localhost:5000
+```
 
-### Habits & Streaks (`/api/habits`)
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| `GET` | `/api/habits?q=` | Private | List habits with today's completion status |
-| `POST` | `/api/habits` | Private | Create habit (`name`, `goalType`, `targetPerWeek`, `weekdays`) |
-| `GET` | `/api/habits/:id` | Private | Get single habit details |
-| `PUT` | `/api/habits/:id` | Private | Update habit name and goal configurations |
-| `DELETE` | `/api/habits/:id` | Private | Delete habit and cascade delete logs |
-| `GET` | `/api/habits/:id/streaks`| Private | Return streak engine stats (`{ current, longest, unit }`) |
-| `GET` | `/api/habits/:id/stats` | Private | Return habit streak stats and 30-day completion rate |
-
-### Habit Logs (`/api/logs`)
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| `POST` | `/api/logs` | Private | Record check-in for date (`{ habitId, date }`) |
-| `DELETE` | `/api/logs/:habitId` | Private | Undo check-in for date (`?date=YYYY-MM-DD`) |
-| `GET` | `/api/logs/heatmap` | Private | 90-day activity matrix (overall or `?habitId=`) |
-| `GET` | `/api/logs/activity-summary` | Private | Summary of most and least active habits |
-
-### Achievement Badges (`/api/badges`)
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| `GET` | `/api/badges` | Private | Compute and return user's achievement badges |
-
-### Insights & Correlations (`/api/insights`)
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| `GET` | `/api/insights/correlation` | Private | Compute correlation for pair `?a=<id>&b=<id>&days=90` |
-| `GET` | `/api/insights/correlations` | Private | Return top 5 habit pairs ranked by lift (`?days=90`) |
-
----
-
-## Database Seeding
-
-To populate MongoDB Atlas with realistic demo data containing all habit types and planted cross-habit correlations over ~2 years:
-
+### 4. Seed the Database
+Populate MongoDB Atlas with demo habits and ~90 days of realistic check-in logs:
 ```bash
 cd server
 npm run seed
 ```
 
-This creates a demo account using generic dummy names (`Alice`, `alice@example.com` / `password123`) containing:
-- 1 **Daily** habit (*Morning Meditation*)
-- 1 **Weekly Target** habit (*Workout*, target 3 days/week)
-- 1 **Weekdays** habit (*Study Algorithms*, Mon/Wed/Fri)
-- 1 **Correlated** habit (*Read*, ~80% done on workout days, ~25% on other days)
-- Over **1,400+ check-in logs** spanning ~730 days ending today.
+**Demo Account Credentials**:
+- **Email**: `demo@habit.com`
+- **Password**: `demo1234`
+
+### 5. Run the Application
+From the repository root:
+```bash
+npm run dev
+```
+- **Client (Vite)**: [http://localhost:5173](http://localhost:5173)
+- **Server (Express)**: [http://localhost:5000](http://localhost:5000)
+- **API Health Check**: [http://localhost:5000/api/health](http://localhost:5000/api/health)
 
 ---
 
-## Running Automated Tests
+## REST API Reference
 
-The backend test suite is built with **Jest** and verifies all streak rules, edge cases, badge boundaries, and correlation formulas.
+All protected endpoints require an `Authorization: Bearer <token>` header obtained from `/api/auth/login` or `/api/auth/register`.
 
-To run tests:
+### 1. Authentication (`/api/auth`)
+| Method | Endpoint | Access | Description | Status Codes |
+|---|---|---|---|---|
+| `POST` | `/api/auth/register` | Public | Register new user `{ name, email, password }` | `201`, `400`, `409` |
+| `POST` | `/api/auth/login` | Public | Authenticate user `{ email, password }` | `200`, `400`, `401` |
+| `GET` | `/api/auth/me` | Protected | Get profile of logged-in user | `200`, `401` |
+
+### 2. Habits CRUD (`/api/habits`)
+| Method | Endpoint | Access | Description | Status Codes |
+|---|---|---|---|---|
+| `GET` | `/api/habits` | Protected | List user habits (supports `?q=` search), newest first | `200`, `401` |
+| `POST` | `/api/habits` | Protected | Create habit `{ name, goalType, targetPerWeek, weekdays }` | `201`, `400`, `409` |
+| `GET` | `/api/habits/:id` | Protected | Get single habit details by ID | `200`, `400`, `404` |
+| `PUT` | `/api/habits/:id` | Protected | Update/rename habit | `200`, `400`, `404`, `409` |
+| `DELETE` | `/api/habits/:id` | Protected | Delete habit and cascade delete all its logs | `204`, `400`, `404` |
+
+### 3. Check-ins & Idempotent Logs (`/api/habits/:id/logs`)
+| Method | Endpoint | Access | Description | Status Codes |
+|---|---|---|---|---|
+| `POST` | `/api/habits/:id/logs` | Protected | Record completion (optional `{ date: "YYYY-MM-DD" }`, defaults to today UTC; idempotent upsert) | `200`, `400`, `404` |
+| `DELETE` | `/api/habits/:id/logs/:date`| Protected | Remove completion for date (idempotent delete) | `200`, `400`, `404` |
+| `GET` | `/api/habits/:id/logs?from=&to=` | Protected | List completion log date strings (`["YYYY-MM-DD", ...]`) | `200`, `400`, `404` |
+
+### 4. Analytics & Aggregations (`/api/stats`)
+Streaks, heatmaps, and stats are **never stored**; they are derived on-the-fly from logs using MongoDB aggregation pipelines.
+| Method | Endpoint | Access | Description | Status Codes |
+|---|---|---|---|---|
+| `GET` | `/api/stats/heatmap?habitId=` | Protected | Exactly 90 items `[{ date, count }]` ending today UTC with 0 filled for missing days | `200`, `400`, `401` |
+| `GET` | `/api/habits/:id/stats` | Protected | Habit streak stats `{ currentStreak, longestStreak, last30: { done, percent } }` via MongoDB window fields | `200`, `400`, `404` |
+| `GET` | `/api/stats/activity` | Protected | Most and least active habits `{ most, least, message }` with alphabetical tie-breaking | `200`, `401` |
+
+### 5. Badges & Cross-Habit Correlation
+| Method | Endpoint | Access | Description | Status Codes |
+|---|---|---|---|---|
+| `GET` | `/api/badges` | Protected | Computed achievement badges (`first_checkin`, `streak_7_days`, `streak_30_days`, `streak_4_weeks`, `checkins_100`, `comeback`) | `200`, `401` |
+| `GET` | `/api/insights/correlation` | Protected | Habit pair correlation & lift metric (`?a=&b=&days=90`) | `200`, `400`, `401` |
+| `GET` | `/api/insights/correlations` | Protected | Top correlated habit pairs ranked by lift | `200`, `401` |
+
+---
+
+## Automated Tests & Verification
+
+The test suite runs using Node.js built-in test runner (`node:test`) with **zero external dependencies** and **no MongoDB connection required**, ensuring fast, deterministic offline execution.
+
+### Run Unit Tests
 ```bash
 cd server
 npm test
 ```
 
-### Test Coverage Highlights:
-- **`server/tests/streaks.test.js`**:
-  - Fixture A: Daily check-ins Oct 1,2,3,5,6 (2026), today Oct 6 $\rightarrow$ current 2, longest 3.
-  - Fixture B: Weekly target 3 (Mon-based) with in-progress week $\rightarrow$ current 2, longest 2 weeks.
-  - Fixture C: Weekdays Mon/Wed/Fri with missed Friday $\rightarrow$ current 1, longest 5 days.
-  - Fixture D: Edge cases (empty check-ins, single check-in, month boundary crossings).
-- **`server/tests/badges.test.js`**:
-  - `first_checkin` initial unlock.
-  - `checkins_100` exact boundary verification (99 vs 100 check-ins).
-  - `comeback` badge triggers on $\ge 7$-day gaps on the same habit.
-  - 7-day, 30-day, and 4-week streak badge validations.
-- **`server/tests/insights.test.js`**:
-  - 20-day window fixture ($A$ on days 1-10, $B$ on days 1-8, 12, 13 $\rightarrow P(B|A)=0.8, P(B|\neg A)=0.2, \text{lift}=4.0$).
-  - Statistical significance cutoff boundary testing ($N < 10$).
+### Test Coverage Highlights (`server/tests/analytics.test.js`)
+- **`fillZeroDays`**:
+  - Verifies exactly 90 items ending today UTC.
+  - Verifies 0 is filled for missing days.
+  - Verifies handling of empty input arrays.
+  - Verifies parsing of MongoDB aggregation `_id` keys.
+- **`pickMostLeast`**:
+  - Covers 0 habits $\rightarrow$ `{ most: null, least: null, message: "No habits yet" }`.
+  - Covers 1 habit $\rightarrow$ `{ most, least: null, message: "Add more habits to compare" }`.
+  - Covers all-equal counts $\rightarrow$ `{ most: alphabeticalFirst, least: null, message: "All habits are equally active" }`.
+  - Covers 2+ distinct habits $\rightarrow$ distinct most and least with `message: null`.
+  - Covers alphabetical tie-breaking for both most and least active.
+- **`computeStreaksFromRuns`**:
+  - Covers no logs $\rightarrow$ `{ currentStreak: 0, longestStreak: 0 }`.
+  - Covers single log ending today, ending yesterday, and ended 2+ days ago.
+  - Covers runs with gaps in the middle:
+    - Streak ending today: current streak maintained.
+    - Streak ending yesterday: in-progress streak maintained.
+    - Streak ended 2+ days ago: current streak drops to 0 while longest streak is preserved.
 
 ---
 
-## Local Setup & Quickstart
+## Continuous Integration (CI)
 
-### 1. Prerequisites
-- **Node.js**: v18+ (tested on Node v20/v26)
-- **npm**: v9+
-- A **MongoDB Atlas** cluster connection URI
-
-### 2. Configure Environment
-Create `server/.env`:
-```env
-MONGO_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/
-PORT=5000
-JWT_SECRET=supersecretphase2jwtkey12345
-```
-
-### 3. Install Dependencies
-```bash
-npm run install:all
-```
-
-### 4. Run Both Client & Server Concurrently
-```bash
-npm run dev
-```
-
-- **Frontend Application**: [http://localhost:5173/](http://localhost:5173/)
-- **Backend API**: [http://localhost:5000/](http://localhost:5000/)
-- **Health Check**: [http://localhost:5000/api/health](http://localhost:5000/api/health)
+The GitHub Actions workflow is located at [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+On every `push` and `pull_request` to `main`:
+1. Sets up Node.js 20.
+2. In `server/`: runs `npm ci` and `npm test` (offline unit tests, no secrets, no MongoDB connection).
+3. In `client/`: runs `npm ci` and `npm run build` (Vite production bundle verification).

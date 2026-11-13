@@ -1,4 +1,12 @@
 require('dotenv').config();
+const path = require('path');
+const dotenv = require('dotenv');
+
+// Load environment variables safely
+dotenv.config();
+dotenv.config({ path: path.join(__dirname, '.env') });
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
 const mongoose = require('mongoose');
 const User = require('./models/User');
 const Habit = require('./models/Habit');
@@ -22,118 +30,120 @@ async function seedData() {
     await mongoose.connect(mongoUri);
     console.log('Connected to MongoDB Atlas for seeding.');
 
-    // 1. Create or retrieve demo user using generic dummy name Alice
-    let user = await User.findOne({ email: 'alice@example.com' });
+    // 1. Create or reset demo user: demo@habit.com / demo1234
+    const demoEmail = 'demo@habit.com';
+    let user = await User.findOne({ email: demoEmail });
     if (!user) {
       user = await User.create({
-        name: 'Alice',
-        email: 'alice@example.com',
-        password: 'password123'
+        name: 'Demo User',
+        email: demoEmail,
+        password: 'demo1234'
       });
-      console.log('Created demo user: Alice (alice@example.com)');
+      console.log('Created demo user: demo@habit.com');
     } else {
-      console.log('Found existing demo user: Alice');
+      user.password = 'demo1234';
+      await user.save();
+      console.log('Reset password for demo user: demo@habit.com');
     }
 
-    // 2. Clean existing habits & logs for demo user
+    // 2. Idempotent cleanup: delete demo user old habits and logs
     const existingHabits = await Habit.find({ userId: user._id });
     const habitIds = existingHabits.map((h) => h._id);
     await Log.deleteMany({ habitId: { $in: habitIds } });
     await Habit.deleteMany({ userId: user._id });
-    console.log('Cleaned previous habits and logs for demo user.');
+    console.log(`Cleaned ${habitIds.length} previous habits and associated logs for demo user.`);
 
-    // 3. Create habits: 1 daily, 1 weekly_target (target 3), 1 weekdays (Mon/Wed/Fri), plus correlated habit
-    const dailyHabit = await Habit.create({
-      userId: user._id,
-      name: 'Morning Meditation',
-      goalType: 'daily'
+    // 3. Create the 5 required habits
+    // Exercise, Read, Meditate, Drink Water, Code
+    const habitsToCreate = [
+      { name: 'Drink Water', goalType: 'daily' },
+      { name: 'Exercise', goalType: 'daily' },
+      { name: 'Code', goalType: 'daily' },
+      { name: 'Read', goalType: 'daily' },
+      { name: 'Meditate', goalType: 'daily' }
+    ];
+
+    const habits = await Habit.insertMany(
+      habitsToCreate.map((h) => ({ ...h, userId: user._id }))
+    );
+
+    const habitMap = {};
+    habits.forEach((h) => {
+      habitMap[h.name] = h;
     });
 
-    const weeklyHabit = await Habit.create({
-      userId: user._id,
-      name: 'Workout',
-      goalType: 'weekly_target',
-      targetPerWeek: 3
-    });
+    console.log('Created 5 habits:', habits.map((h) => h.name).join(', '));
 
-    const weekdaysHabit = await Habit.create({
-      userId: user._id,
-      name: 'Study Algorithms',
-      goalType: 'weekdays',
-      weekdays: [1, 3, 5] // Monday, Wednesday, Friday
-    });
-
-    // Correlated habit (Read) for Task 4
-    const readHabit = await Habit.create({
-      userId: user._id,
-      name: 'Read',
-      goalType: 'daily'
-    });
-
-    console.log('Created habits:', {
-      daily: dailyHabit.name,
-      weekly: `${weeklyHabit.name} (target: ${weeklyHabit.targetPerWeek}/wk)`,
-      weekdays: `${weekdaysHabit.name} (Mon/Wed/Fri)`,
-      correlated: readHabit.name
-    });
-
-    // 4. Generate ~2 years (730 days) of realistic random check-in data
-    const totalDays = 730;
+    // 4. Generate ~90 days of logs per habit with varying densities and deliberate streaks
+    // Days range from 89 days ago (i = 89) to 0 days ago (today, i = 0)
     const logs = [];
 
-    // Simple deterministic pseudo-random helper for consistent seed distribution
-    let seed = 42;
-    const random = () => {
-      seed = (seed * 9301 + 49297) % 233280;
-      return seed / 233280;
-    };
-
-    for (let i = totalDays - 1; i >= 0; i--) {
-      const date = getDayUTC(i);
-      const dayOfWeek = date.getUTCDay();
-
-      // Daily habit: ~75% completion rate with realistic clusters
-      if (random() < 0.75) {
-        logs.push({ habitId: dailyHabit._id, userId: user._id, date });
-      }
-
-      // Weekly habit (Workout): target 3/wk, ~50% day completion probability
-      const workoutDone = random() < 0.45;
-      if (workoutDone) {
-        logs.push({ habitId: weeklyHabit._id, userId: user._id, date });
-      }
-
-      // Read habit: planted correlation with Workout
-      // When Workout is done, Read is done ~80% of the time; otherwise ~25%
-      const readThreshold = workoutDone ? 0.80 : 0.25;
-      if (random() < readThreshold) {
-        logs.push({ habitId: readHabit._id, userId: user._id, date });
-      }
-
-      // Weekdays habit: Mon, Wed, Fri only, ~85% consistency on scheduled days
-      if ([1, 3, 5].includes(dayOfWeek)) {
-        if (random() < 0.85) {
-          logs.push({ habitId: weekdaysHabit._id, userId: user._id, date });
-        }
+    // Drink Water: Most active (~85% completion, current streak: 12 days)
+    for (let i = 89; i >= 0; i--) {
+      // Deliberate current streak: past 12 days (0 to 11) completed
+      if (i <= 11) {
+        logs.push({ habitId: habitMap['Drink Water']._id, userId: user._id, date: getDayUTC(i) });
+      } else if (i % 7 !== 0 && i % 13 !== 0) {
+        // ~83% of other days
+        logs.push({ habitId: habitMap['Drink Water']._id, userId: user._id, date: getDayUTC(i) });
       }
     }
 
-    if (logs.length > 0) {
-      await Log.insertMany(logs, { ordered: false });
-      console.log(`Inserted ${logs.length} check-in logs over ~2 years.`);
+    // Exercise: Active (~65% completion, current streak: 4 days)
+    for (let i = 89; i >= 0; i--) {
+      if (i <= 3) {
+        logs.push({ habitId: habitMap['Exercise']._id, userId: user._id, date: getDayUTC(i) });
+      } else if (i > 3 && (i % 3 !== 0)) {
+        logs.push({ habitId: habitMap['Exercise']._id, userId: user._id, date: getDayUTC(i) });
+      }
     }
 
-    console.log('Seed completed successfully!');
+    // Code: Moderate (~50% completion, completed yesterday, not today)
+    for (let i = 89; i >= 0; i--) {
+      if (i === 1 || i === 2 || i === 3) {
+        logs.push({ habitId: habitMap['Code']._id, userId: user._id, date: getDayUTC(i) });
+      } else if (i > 3 && i % 2 === 0) {
+        logs.push({ habitId: habitMap['Code']._id, userId: user._id, date: getDayUTC(i) });
+      }
+    }
+
+    // Read: Lower completion (~35%, deliberate gap of 5 days)
+    for (let i = 89; i >= 0; i--) {
+      if (i > 5 && i % 3 === 0) {
+        logs.push({ habitId: habitMap['Read']._id, userId: user._id, date: getDayUTC(i) });
+      }
+    }
+
+    // Meditate: Least active (~20%, scattered completions, no current streak)
+    for (let i = 89; i >= 0; i--) {
+      if (i > 7 && i % 5 === 0) {
+        logs.push({ habitId: habitMap['Meditate']._id, userId: user._id, date: getDayUTC(i) });
+      }
+    }
+
+    // 5. Insert logs using insertMany with ordered: false
+    const insertResult = await Log.insertMany(logs, { ordered: false });
+
+    // Print summary counts only (NEVER the URI)
+    console.log('--- Seed Summary ---');
+    console.log(`Demo User: demo@habit.com (password: demo1234)`);
+    console.log(`Habits created: ${habits.length}`);
+    console.log(`Total completion logs inserted: ${insertResult.length}`);
+    for (const h of habits) {
+      const habitLogCount = logs.filter((l) => l.habitId.toString() === h._id.toString()).length;
+      console.log(`  - ${h.name}: ${habitLogCount} logs`);
+    }
+    console.log('Seeding finished successfully.');
+
+    await mongoose.disconnect();
     process.exit(0);
-  } catch (err) {
-    console.error('Seeding error:', err);
+  } catch (error) {
+    console.error('Seeding error:', error.message);
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.disconnect();
+    }
     process.exit(1);
   }
 }
 
-if (require.main === module) {
-  seedData();
-}
-
-module.exports = { seedData };
-
+seedData();
