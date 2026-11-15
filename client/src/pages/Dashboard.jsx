@@ -121,7 +121,7 @@ const Dashboard = () => {
       {/* Filter box bound to URL query string */}
       <div className="filter-bar">
         <input
-          type="search"
+          type="text"
           className="filter-input"
           placeholder="Filter habits by name"
           value={searchQuery}

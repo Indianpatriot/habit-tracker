@@ -203,10 +203,21 @@ export const undoDone = async (habitId, date) => {
 };
 
 /**
- * Fetch achievement badges for logged-in user
+ * Fetch achievement badges for logged-in user (legacy 6 badges)
  */
 export const getBadges = async () => {
   const res = await fetch(`${API_BASE_URL}/api/badges`, {
+    method: 'GET',
+    headers: getAuthHeaders()
+  });
+  return handleResponse(res);
+};
+
+/**
+ * Fetch all 25 achievement badges for logged-in user from live analytics
+ */
+export const getAchievements = async () => {
+  const res = await fetch(`${API_BASE_URL}/api/stats/achievements`, {
     method: 'GET',
     headers: getAuthHeaders()
   });
