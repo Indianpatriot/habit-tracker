@@ -225,6 +225,28 @@ export const getAchievements = async () => {
 };
 
 /**
+ * Fetch overview data and takeaways for all 6 SVG insight charts
+ */
+export const getInsightsOverview = async () => {
+  const res = await fetch(`${API_BASE_URL}/api/stats/insights/overview`, {
+    method: 'GET',
+    headers: getAuthHeaders()
+  });
+  return handleResponse(res);
+};
+
+/**
+ * Fetch cross-habit insights (matrix, best pair, keystone, share, dropped together)
+ */
+export const getCrossInsights = async () => {
+  const res = await fetch(`${API_BASE_URL}/api/stats/insights/cross`, {
+    method: 'GET',
+    headers: getAuthHeaders()
+  });
+  return handleResponse(res);
+};
+
+/**
  * Fetch correlation for a pair of habits over a window of days
  */
 export const getCorrelation = async (habitAId, habitBId, days = 90) => {

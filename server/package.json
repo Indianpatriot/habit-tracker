@@ -7,8 +7,10 @@
     "dev": "node --watch index.js",
     "start": "node index.js",
     "seed": "node seed.js",
-    "test": "node --test tests/analytics.test.js tests/achievements.test.js",
-    "test:achievements": "node --test tests/achievements.test.js"
+    "test": "node --test tests/analytics.test.js tests/achievements.test.js tests/insightsOverview.test.js tests/crossInsights.test.js",
+    "test:achievements": "node --test tests/achievements.test.js",
+    "test:insights": "node --test tests/insightsOverview.test.js",
+    "test:cross": "node --test tests/crossInsights.test.js"
   },
   "keywords": [],
   "author": "",
