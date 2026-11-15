@@ -78,46 +78,61 @@ async function seedData() {
     // Days range from 89 days ago (i = 89) to 0 days ago (today, i = 0)
     const logs = [];
 
+    const sampleNotes = [
+      'Felt energised and productive',
+      'Completed early in the morning',
+      'Quick session during lunch break',
+      'Consistent progress and focus',
+      'Drank water and stayed hydrated'
+    ];
+
+    const getNote = (daysAgo) => {
+      if (daysAgo % 5 === 0) {
+        return sampleNotes[(daysAgo / 5) % sampleNotes.length];
+      }
+      return '';
+    };
+
     // Drink Water: Most active (~85% completion, current streak: 12 days)
     for (let i = 89; i >= 0; i--) {
       // Deliberate current streak: past 12 days (0 to 11) completed
       if (i <= 11) {
-        logs.push({ habitId: habitMap['Drink Water']._id, userId: user._id, date: getDayUTC(i) });
+        logs.push({ habitId: habitMap['Drink Water']._id, userId: user._id, date: getDayUTC(i), note: getNote(i) });
       } else if (i % 7 !== 0 && i % 13 !== 0) {
         // ~83% of other days
-        logs.push({ habitId: habitMap['Drink Water']._id, userId: user._id, date: getDayUTC(i) });
+        logs.push({ habitId: habitMap['Drink Water']._id, userId: user._id, date: getDayUTC(i), note: getNote(i) });
       }
     }
 
     // Exercise: Active (~65% completion, current streak: 4 days)
     for (let i = 89; i >= 0; i--) {
       if (i <= 3) {
-        logs.push({ habitId: habitMap['Exercise']._id, userId: user._id, date: getDayUTC(i) });
+        logs.push({ habitId: habitMap['Exercise']._id, userId: user._id, date: getDayUTC(i), note: getNote(i) });
       } else if (i > 3 && (i % 3 !== 0)) {
-        logs.push({ habitId: habitMap['Exercise']._id, userId: user._id, date: getDayUTC(i) });
+        logs.push({ habitId: habitMap['Exercise']._id, userId: user._id, date: getDayUTC(i), note: getNote(i) });
       }
     }
 
     // Code: Moderate (~50% completion, completed yesterday, not today)
     for (let i = 89; i >= 0; i--) {
       if (i === 1 || i === 2 || i === 3) {
-        logs.push({ habitId: habitMap['Code']._id, userId: user._id, date: getDayUTC(i) });
+        logs.push({ habitId: habitMap['Code']._id, userId: user._id, date: getDayUTC(i), note: getNote(i) });
       } else if (i > 3 && i % 2 === 0) {
-        logs.push({ habitId: habitMap['Code']._id, userId: user._id, date: getDayUTC(i) });
+        logs.push({ habitId: habitMap['Code']._id, userId: user._id, date: getDayUTC(i), note: getNote(i) });
       }
     }
 
     // Read: Lower completion (~35%, deliberate gap of 5 days)
     for (let i = 89; i >= 0; i--) {
       if (i > 5 && i % 3 === 0) {
-        logs.push({ habitId: habitMap['Read']._id, userId: user._id, date: getDayUTC(i) });
+        logs.push({ habitId: habitMap['Read']._id, userId: user._id, date: getDayUTC(i), note: getNote(i) });
       }
     }
 
     // Meditate: Least active (~20%, scattered completions, no current streak)
     for (let i = 89; i >= 0; i--) {
       if (i > 7 && i % 5 === 0) {
-        logs.push({ habitId: habitMap['Meditate']._id, userId: user._id, date: getDayUTC(i) });
+        logs.push({ habitId: habitMap['Meditate']._id, userId: user._id, date: getDayUTC(i), note: getNote(i) });
       }
     }
 

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import PropTypes from 'prop-types';
 
@@ -8,6 +9,8 @@ import PropTypes from 'prop-types';
  * Completion state is DERIVED from check-in data (habit.completedToday) to survive refresh.
  */
 const HabitCard = ({ habit, onToggleDone, onMarkDone, onUndo }) => {
+  const [note, setNote] = useState('');
+
   // Format creation date for display
   const createdDate = habit.createdAt
     ? new Date(habit.createdAt).toLocaleDateString()
@@ -18,12 +21,16 @@ const HabitCard = ({ habit, onToggleDone, onMarkDone, onUndo }) => {
 
   // Toggle handler with fallback to onMarkDone / onUndo
   const handleToggle = () => {
+    const trimmedNote = note.trim();
     if (onToggleDone) {
-      onToggleDone(habit._id, isDone);
+      onToggleDone(habit._id, isDone, trimmedNote);
     } else if (isDone && onUndo) {
       onUndo(habit._id);
     } else if (!isDone && onMarkDone) {
-      onMarkDone(habit._id);
+      onMarkDone(habit._id, trimmedNote);
+    }
+    if (!isDone) {
+      setNote('');
     }
   };
 
@@ -37,6 +44,25 @@ const HabitCard = ({ habit, onToggleDone, onMarkDone, onUndo }) => {
       </div>
 
       <div className="habit-actions">
+        {/* Optional note input when habit is not done yet */}
+        {!isDone && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+            <input
+              type="text"
+              className="form-control"
+              style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', width: '130px' }}
+              placeholder="Add note..."
+              value={note}
+              maxLength={200}
+              onChange={(e) => setNote(e.target.value)}
+              aria-label={`Optional note for ${habit.name}`}
+            />
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', minWidth: '42px' }}>
+              {note.length}/200
+            </span>
+          </div>
+        )}
+
         {/* Color-coded Mark Done / Done toggle button */}
         <button
           type="button"

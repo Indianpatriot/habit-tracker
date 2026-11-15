@@ -35,7 +35,7 @@ export const TodayProgressRing = ({ todayDone, totalHabits, percent, takeaway })
               cy="80"
               r={radius}
               fill="none"
-              stroke="#e2e8f0"
+              stroke="var(--border-color)"
               strokeWidth={strokeWidth}
             />
             {/* Animated progress ring */}
@@ -44,7 +44,7 @@ export const TodayProgressRing = ({ todayDone, totalHabits, percent, takeaway })
               cy="80"
               r={radius}
               fill="none"
-              stroke="#16a34a"
+              stroke="var(--primary)"
               strokeWidth={strokeWidth}
               strokeDasharray={circumference}
               strokeDashoffset={strokeDashoffset}
@@ -59,7 +59,7 @@ export const TodayProgressRing = ({ todayDone, totalHabits, percent, takeaway })
               textAnchor="middle"
               fontSize="24"
               fontWeight="700"
-              fill="#0f172a"
+              fill="var(--text-dark)"
             >
               {todayDone}/{totalHabits}
             </text>
@@ -69,7 +69,7 @@ export const TodayProgressRing = ({ todayDone, totalHabits, percent, takeaway })
               textAnchor="middle"
               fontSize="12"
               fontWeight="600"
-              fill="#64748b"
+              fill="var(--text-muted)"
             >
               {percent}% completed
             </text>
@@ -116,7 +116,7 @@ export const WeeklyTrendChart = ({ weekly, takeaway }) => {
             aria-label="Weekly completions trend bar chart for the last 12 weeks"
           >
             {/* Grid baseline */}
-            <line x1="20" y1="135" x2="445" y2="135" stroke="#e2e8f0" strokeWidth="1" />
+            <line x1="20" y1="135" x2="445" y2="135" stroke="var(--border-color)" strokeWidth="1" />
 
             {(weekly || []).map((item, idx) => {
               const barWidth = 22;
@@ -133,7 +133,7 @@ export const WeeklyTrendChart = ({ weekly, takeaway }) => {
                     width={barWidth}
                     height={barHeight}
                     rx="4"
-                    fill={isCurrent ? '#16a34a' : '#86efac'}
+                    fill={isCurrent ? 'var(--primary)' : 'var(--heat-1)'}
                     style={{ transition: 'height 0.4s ease, y 0.4s ease' }}
                   >
                     <title>{`${item.label}: ${item.count} check-ins ${isCurrent ? '(Current Week)' : ''}`}</title>
@@ -145,7 +145,7 @@ export const WeeklyTrendChart = ({ weekly, takeaway }) => {
                       textAnchor="middle"
                       fontSize="10"
                       fontWeight="600"
-                      fill={isCurrent ? '#16a34a' : '#475569'}
+                      fill={isCurrent ? 'var(--primary)' : 'var(--text-dark)'}
                     >
                       {item.count}
                     </text>
@@ -158,7 +158,7 @@ export const WeeklyTrendChart = ({ weekly, takeaway }) => {
                       textAnchor="middle"
                       fontSize="9"
                       fontWeight={isCurrent ? '700' : '500'}
-                      fill={isCurrent ? '#16a34a' : '#94a3b8'}
+                      fill={isCurrent ? 'var(--primary)' : 'var(--text-muted)'}
                     >
                       {item.label}
                     </text>
@@ -213,7 +213,7 @@ export const WeekdayPatternChart = ({ weekdayCounts, takeaway }) => {
             role="img"
             aria-label="Day-of-week completions pattern bar chart over the last 90 days"
           >
-            <line x1="25" y1="135" x2="355" y2="135" stroke="#e2e8f0" strokeWidth="1" />
+            <line x1="25" y1="135" x2="355" y2="135" stroke="var(--border-color)" strokeWidth="1" />
 
             {(weekdayCounts || []).map((item, idx) => {
               const barWidth = 32;
@@ -229,7 +229,7 @@ export const WeekdayPatternChart = ({ weekdayCounts, takeaway }) => {
                     width={barWidth}
                     height={barHeight}
                     rx="4"
-                    fill={item.isBest ? '#15803d' : '#4ade80'}
+                    fill={item.isBest ? 'var(--primary)' : 'var(--heat-2)'}
                     style={{ transition: 'height 0.4s ease, y 0.4s ease' }}
                   >
                     <title>{`${item.day}: ${item.count} completions ${item.isBest ? '(Most Active)' : ''}`}</title>
@@ -240,7 +240,7 @@ export const WeekdayPatternChart = ({ weekdayCounts, takeaway }) => {
                     textAnchor="middle"
                     fontSize="11"
                     fontWeight="700"
-                    fill={item.isBest ? '#15803d' : '#334155'}
+                    fill={item.isBest ? 'var(--primary)' : 'var(--text-dark)'}
                   >
                     {item.count}
                   </text>
@@ -250,7 +250,7 @@ export const WeekdayPatternChart = ({ weekdayCounts, takeaway }) => {
                     textAnchor="middle"
                     fontSize="11"
                     fontWeight={item.isBest ? '700' : '500'}
-                    fill={item.isBest ? '#15803d' : '#64748b'}
+                    fill={item.isBest ? 'var(--primary)' : 'var(--text-muted)'}
                   >
                     {item.day}
                   </text>
@@ -322,7 +322,7 @@ export const StreakRaceChart = ({ streaks, takeaway }) => {
                     y={y + 12}
                     fontSize="11"
                     fontWeight="600"
-                    fill="#1e293b"
+                    fill="var(--text-dark)"
                   >
                     {s.name.length > 15 ? `${s.name.slice(0, 14)}…` : s.name}
                   </text>
@@ -334,7 +334,7 @@ export const StreakRaceChart = ({ streaks, takeaway }) => {
                     width={longestWidth}
                     height="16"
                     rx="4"
-                    fill="#dcfce7"
+                    fill="var(--primary-light)"
                   >
                     <title>{`Longest: ${s.longestStreak} days`}</title>
                   </rect>
@@ -347,7 +347,7 @@ export const StreakRaceChart = ({ streaks, takeaway }) => {
                       width={currentWidth}
                       height="16"
                       rx="4"
-                      fill="#16a34a"
+                      fill="var(--primary)"
                     >
                       <title>{`Current: ${s.currentStreak} days`}</title>
                     </rect>
@@ -359,9 +359,9 @@ export const StreakRaceChart = ({ streaks, takeaway }) => {
                     y={y + 12}
                     fontSize="11"
                     fontWeight="600"
-                    fill="#475569"
+                    fill="var(--text-dark)"
                   >
-                    {s.currentStreak}d <tspan fill="#94a3b8">/ best {s.longestStreak}d</tspan>
+                    {s.currentStreak}d <tspan fill="var(--text-muted)">/ best {s.longestStreak}d</tspan>
                   </text>
                 </g>
               );
@@ -424,7 +424,7 @@ export const Last30Donuts = ({ last30, takeaway }) => {
                       cy="36"
                       r={radius}
                       fill="none"
-                      stroke="#e2e8f0"
+                      stroke="var(--border-color)"
                       strokeWidth={strokeWidth}
                     />
                     <circle
@@ -432,7 +432,7 @@ export const Last30Donuts = ({ last30, takeaway }) => {
                       cy="36"
                       r={radius}
                       fill="none"
-                      stroke="#16a34a"
+                      stroke="var(--primary)"
                       strokeWidth={strokeWidth}
                       strokeDasharray={circumference}
                       strokeDashoffset={dashOffset}
@@ -446,7 +446,7 @@ export const Last30Donuts = ({ last30, takeaway }) => {
                       textAnchor="middle"
                       fontSize="12"
                       fontWeight="700"
-                      fill="#0f172a"
+                      fill="var(--text-dark)"
                     >
                       {h.percent}%
                     </text>
@@ -532,7 +532,7 @@ export const MomentumLineChart = ({ rolling7, takeaway }) => {
             </defs>
 
             {/* Baseline */}
-            <line x1="30" y1="130" x2="480" y2="130" stroke="#e2e8f0" strokeWidth="1" />
+            <line x1="30" y1="130" x2="480" y2="130" stroke="var(--border-color)" strokeWidth="1" />
 
             {/* Area fill */}
             {areaD && <path d={areaD} fill="url(#momentumGradient)" />}
@@ -542,7 +542,7 @@ export const MomentumLineChart = ({ rolling7, takeaway }) => {
               <path
                 d={lineD}
                 fill="none"
-                stroke="#16a34a"
+                stroke="var(--primary)"
                 strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -556,8 +556,8 @@ export const MomentumLineChart = ({ rolling7, takeaway }) => {
                   cx={todayPoint.x}
                   cy={todayPoint.y}
                   r="5"
-                  fill="#15803d"
-                  stroke="#ffffff"
+                  fill="var(--primary)"
+                  stroke="var(--bg-card)"
                   strokeWidth="2"
                 />
                 <title>{`Today: ${todayPoint.pt.value} completions/day`}</title>
@@ -565,13 +565,13 @@ export const MomentumLineChart = ({ rolling7, takeaway }) => {
             )}
 
             {/* X-axis date labels */}
-            <text x="35" y="148" fontSize="10" fill="#94a3b8">
+            <text x="35" y="148" fontSize="10" fill="var(--text-muted)">
               90d ago
             </text>
-            <text x="250" y="148" textAnchor="middle" fontSize="10" fill="#94a3b8">
+            <text x="250" y="148" textAnchor="middle" fontSize="10" fill="var(--text-muted)">
               45d ago
             </text>
-            <text x="475" y="148" textAnchor="end" fontSize="10" fontWeight="700" fill="#15803d">
+            <text x="475" y="148" textAnchor="end" fontSize="10" fontWeight="700" fill="var(--primary)">
               Today
             </text>
           </svg>

@@ -1,5 +1,6 @@
 // Central error-handling middleware for Express
 // Ensures consistent error response shape: { message: string }
+// Never exposes internal stack traces to the client
 const errorHandler = (err, req, res, next) => {
   let statusCode = err.statusCode || (res.statusCode && res.statusCode !== 200 ? res.statusCode : 500);
   let message = err.message || 'Internal Server Error';
@@ -29,6 +30,24 @@ const errorHandler = (err, req, res, next) => {
     message = 'Not authorized, token failed or expired';
   }
 
+  // Handle JSON payload size limit exceeded -> 413
+  if (err.type === 'entity.too.large') {
+    statusCode = 413;
+    message = 'Payload too large';
+  }
+
+  // Handle rate limit errors -> 429
+  if (err.status === 429) {
+    statusCode = 429;
+    message = 'Too many requests, please try again later.';
+  }
+
+  // Log 500 internal errors server-side only
+  if (statusCode === 500) {
+    console.error('Server Internal Error:', err);
+  }
+
+  // Never send stack traces when NODE_ENV is production (and clean JSON in all environments)
   res.status(statusCode).json({ message });
 };
 

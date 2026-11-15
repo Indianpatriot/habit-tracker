@@ -10,11 +10,18 @@ const Heatmap = ({ data, selectedDate, onSelectDate }) => {
     return <div className="text-center text-muted">No heatmap data available.</div>;
   }
 
-  // 5 green shades mapped to count (0 to 4)
-  const colorScale = ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'];
+  // 5 green shades mapped to count (0 to 4) using CSS variables for theme support
+  const colorScale = [
+    'var(--heat-0)',
+    'var(--heat-1)',
+    'var(--heat-2)',
+    'var(--heat-3)',
+    'var(--heat-4)'
+  ];
 
-  const cellSize = 13;
-  const cellGap = 3;
+  const isYearView = data.length > 180;
+  const cellSize = isYearView ? 11 : 13;
+  const cellGap = isYearView ? 2 : 3;
   const leftMargin = 32; // Space for Mon/Wed/Fri labels
   const topMargin = 22;  // Space for month labels
 
@@ -86,7 +93,7 @@ const Heatmap = ({ data, selectedDate, onSelectDate }) => {
               x={lbl.x}
               y={14}
               fontSize="10"
-              fill="#6b7280"
+              fill="var(--text-muted)"
               fontFamily="sans-serif"
             >
               {lbl.text}
@@ -98,7 +105,7 @@ const Heatmap = ({ data, selectedDate, onSelectDate }) => {
             x={10}
             y={topMargin + 1 * (cellSize + cellGap) + 10}
             fontSize="9"
-            fill="#9ca3af"
+            fill="var(--text-muted)"
             fontFamily="sans-serif"
           >
             Mon
@@ -107,7 +114,7 @@ const Heatmap = ({ data, selectedDate, onSelectDate }) => {
             x={10}
             y={topMargin + 3 * (cellSize + cellGap) + 10}
             fontSize="9"
-            fill="#9ca3af"
+            fill="var(--text-muted)"
             fontFamily="sans-serif"
           >
             Wed
@@ -116,7 +123,7 @@ const Heatmap = ({ data, selectedDate, onSelectDate }) => {
             x={10}
             y={topMargin + 5 * (cellSize + cellGap) + 10}
             fontSize="9"
-            fill="#9ca3af"
+            fill="var(--text-muted)"
             fontFamily="sans-serif"
           >
             Fri
@@ -135,7 +142,7 @@ const Heatmap = ({ data, selectedDate, onSelectDate }) => {
                 rx={2}
                 ry={2}
                 fill={cell.fillColor}
-                stroke={isSelected ? '#111827' : 'none'}
+                stroke={isSelected ? 'var(--text-dark)' : 'none'}
                 strokeWidth={isSelected ? 1.5 : 0}
                 style={{ cursor: onSelectDate ? 'pointer' : 'default' }}
                 onClick={() => onSelectDate && onSelectDate(cell.date)}

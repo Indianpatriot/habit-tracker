@@ -20,6 +20,21 @@ const userSchema = new mongoose.Schema({
     required: [true, 'Password is required'],
     minlength: [6, 'Password must be at least 6 characters']
   },
+  age: {
+    type: Number,
+    min: [10, 'Age must be at least 10'],
+    max: [100, 'Age cannot exceed 100'],
+    validate: {
+      validator: function (v) {
+        return v === null || v === undefined || Number.isInteger(v);
+      },
+      message: 'Age must be an integer'
+    }
+  },
+  picture: {
+    type: String,
+    default: ''
+  },
   createdAt: {
     type: Date,
     default: Date.now

@@ -43,6 +43,12 @@ const logSchema = new mongoose.Schema(
       required: [true, 'Log date is required'],
       set: normalizeToUTCMidnight,
       get: formatDateToYYYYMMDD
+    },
+    note: {
+      type: String,
+      trim: true,
+      maxlength: [200, 'Note cannot exceed 200 characters'],
+      default: ''
     }
   },
   {

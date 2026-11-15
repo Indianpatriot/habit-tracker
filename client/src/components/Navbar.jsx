@@ -1,12 +1,55 @@
+import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 
 /**
  * Navbar component
- * Navigation bar containing links to Dashboard, Heatmap, Add Habit,
- * and a Logout action that clears the session and redirects to /login.
+ * Navigation bar containing links to Dashboard, Heatmap, Badges, Insights,
+ * Add Habit, Profile avatar, Dark/Light mode toggle, and Logout.
  */
 const Navbar = () => {
   const navigate = useNavigate();
+
+  const [theme, setTheme] = useState(() => {
+    const currentAttr = document.documentElement.getAttribute('data-theme');
+    if (currentAttr) return currentAttr;
+    const saved = localStorage.getItem('theme');
+    if (saved) return saved;
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+    return 'light';
+  });
+
+  const [user, setUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user')) || null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    const handleUserUpdate = () => {
+      try {
+        setUser(JSON.parse(localStorage.getItem('user')) || null);
+      } catch {
+        setUser(null);
+      }
+    };
+    window.addEventListener('user-profile-updated', handleUserUpdate);
+    window.addEventListener('storage', handleUserUpdate);
+    return () => {
+      window.removeEventListener('user-profile-updated', handleUserUpdate);
+      window.removeEventListener('storage', handleUserUpdate);
+    };
+  }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    document.documentElement.setAttribute('data-theme', nextTheme);
+    localStorage.setItem('theme', nextTheme);
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -64,6 +107,38 @@ const Navbar = () => {
           >
             + Add Habit
           </NavLink>
+
+          {/* Dark / Light mode toggle */}
+          <button
+            type="button"
+            className="theme-toggle-btn"
+            onClick={toggleTheme}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            title={`Current mode: ${theme}`}
+          >
+            {theme === 'dark' ? '🌙 Dark' : '☀️ Light'}
+          </button>
+
+          {/* User profile avatar linking to /profile */}
+          <NavLink
+            to="/profile"
+            className="nav-avatar-link"
+            title="User Profile"
+            aria-label="User Profile"
+          >
+            {user && user.picture ? (
+              <img
+                src={user.picture}
+                alt={user.name || 'User'}
+                className="avatar-img"
+              />
+            ) : (
+              <div className="avatar-initials">
+                {user && user.name ? user.name.trim().charAt(0).toUpperCase() : 'U'}
+              </div>
+            )}
+          </NavLink>
+
           <button onClick={handleLogout} className="btn-logout" type="button">
             Logout
           </button>

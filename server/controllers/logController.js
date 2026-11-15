@@ -4,7 +4,8 @@ const Habit = require('../models/Habit');
 const {
   getHeatmapPipeline,
   fillZeroDays,
-  formatUTCDate
+  formatUTCDate,
+  validateHeatmapDays
 } = require('../analytics/heatmap');
 const {
   getStreakAggregationPipeline,
@@ -14,6 +15,10 @@ const {
   getActivityAggregationPipeline,
   pickMostLeast
 } = require('../analytics/activity');
+const {
+  parsePagination,
+  computeTotalPages
+} = require('../analytics/pagination');
 
 // Helper to get today UTC midnight date
 const getTodayUTCMidnight = () => {
@@ -77,17 +82,41 @@ const markDone = async (req, res, next) => {
     const [year, month, day] = targetDateStr.split('-').map(Number);
     const targetDateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
 
+    const note = req.body && req.body.note;
+    if (note !== undefined && note !== null) {
+      if (typeof note !== 'string') {
+        res.status(400);
+        throw new Error('Note must be a string');
+      }
+      if (note.trim().length > 200) {
+        res.status(400);
+        throw new Error('Note cannot exceed 200 characters');
+      }
+    }
+
+    // Build updateDoc: $setOnInsert sets required fields on creation.
+    // If note is provided, $set updates the note; if not provided, existing note is kept untouched.
+    const updateDoc = {
+      $setOnInsert: { habitId: habit._id, userId, date: targetDateObj }
+    };
+    if (note !== undefined && note !== null && typeof note === 'string') {
+      updateDoc.$set = { note: note.trim() };
+    }
+
     // Idempotent upsert: updateOne with $setOnInsert and upsert: true
     await Log.updateOne(
       { habitId: habit._id, userId, date: targetDateObj },
-      { $setOnInsert: { habitId: habit._id, userId, date: targetDateObj } },
+      updateDoc,
       { upsert: true }
     );
+
+    const savedLog = await Log.findOne({ habitId: habit._id, userId, date: targetDateObj }).lean();
 
     res.status(200).json({
       habitId: String(habit._id),
       date: targetDateStr,
-      done: true
+      done: true,
+      note: savedLog ? (savedLog.note || '') : (note ? note.trim() : '')
     });
   } catch (error) {
     next(error);
@@ -190,12 +219,12 @@ const getHabitLogs = async (req, res, next) => {
   }
 };
 
-// @desc    Get 90-day heatmap data derived from MongoDB aggregation
-// @route   GET /api/stats/heatmap?habitId= (also GET /api/logs/heatmap)
+// @desc    Get heatmap data derived from MongoDB aggregation (30, 90, 365 days)
+// @route   GET /api/stats/heatmap?habitId=&days= (also GET /api/logs/heatmap)
 // @access  Private
 const getHeatmap = async (req, res, next) => {
   try {
-    const { habitId } = req.query;
+    const { habitId, days } = req.query;
     const userId = req.userId || req.user._id;
 
     if (habitId && !mongoose.isValidObjectId(habitId)) {
@@ -203,15 +232,21 @@ const getHeatmap = async (req, res, next) => {
       throw new Error('Invalid habit ID');
     }
 
+    const validatedDays = validateHeatmapDays(days);
+    if (!validatedDays) {
+      res.status(400);
+      throw new Error('Invalid days parameter. Allowed values: 30, 90, 365');
+    }
+
     const todayUTC = getTodayUTCMidnight();
     const startDateUTC = new Date(todayUTC);
-    startDateUTC.setUTCDate(todayUTC.getUTCDate() - 89);
+    startDateUTC.setUTCDate(todayUTC.getUTCDate() - (validatedDays - 1));
 
     const pipeline = getHeatmapPipeline(userId, habitId, startDateUTC, todayUTC);
     const rawItems = await Log.aggregate(pipeline);
 
-    // Pure helper: guarantees exactly 90 days ending today UTC with 0 for missing days
-    const result = fillZeroDays(rawItems, todayUTC);
+    // Pure helper: guarantees exactly `validatedDays` items ending today UTC with 0 for missing days
+    const result = fillZeroDays(rawItems, todayUTC, validatedDays);
 
     res.status(200).json(result);
   } catch (error) {
@@ -272,12 +307,19 @@ const getHabitStats = async (req, res, next) => {
   }
 };
 
-// @desc    Get most and least active habit summary over last 90 days from MongoDB aggregation
+// @desc    Get most and least active habit summary over last N days from MongoDB aggregation
 // @route   GET /api/stats/activity (also GET /api/logs/activity-summary)
 // @access  Private
 const getActivitySummary = async (req, res, next) => {
   try {
     const userId = req.userId || req.user._id;
+    const { days } = req.query;
+
+    const validatedDays = validateHeatmapDays(days);
+    if (!validatedDays) {
+      res.status(400);
+      throw new Error('Invalid days parameter. Allowed values: 30, 90, 365');
+    }
 
     // Fetch user's habits
     const habits = await Habit.find({ userId }).lean();
@@ -291,15 +333,119 @@ const getActivitySummary = async (req, res, next) => {
 
     const todayUTC = getTodayUTCMidnight();
     const startDateUTC = new Date(todayUTC);
-    startDateUTC.setUTCDate(todayUTC.getUTCDate() - 89);
+    startDateUTC.setUTCDate(todayUTC.getUTCDate() - (validatedDays - 1));
 
     const pipeline = getActivityAggregationPipeline(userId, startDateUTC, todayUTC);
     const counts = await Log.aggregate(pipeline);
 
     // Pure helper: merges habits with counts and applies Phase 1 tie-breaking rules
-    const result = pickMostLeast(counts, habits);
+    const result = pickMostLeast(counts, habits, validatedDays);
 
     res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Edit or clear the note on an existing habit log
+// @route   PATCH /api/habits/:id/logs/:date
+// @access  Private
+const patchLogNote = async (req, res, next) => {
+  try {
+    const habitId = req.params.id;
+    const dateStr = req.params.date;
+    const userId = req.userId || req.user._id;
+
+    if (!habitId || !mongoose.isValidObjectId(habitId)) {
+      res.status(400);
+      throw new Error('Valid habit ID is required');
+    }
+
+    if (!isValidDateString(dateStr)) {
+      res.status(400);
+      throw new Error('Invalid date format. Expected YYYY-MM-DD');
+    }
+
+    const note = req.body && req.body.note;
+    if (note === undefined || typeof note !== 'string') {
+      res.status(400);
+      throw new Error('Note must be a string');
+    }
+
+    const trimmedNote = note.trim();
+    if (trimmedNote.length > 200) {
+      res.status(400);
+      throw new Error('Note cannot exceed 200 characters');
+    }
+
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const dateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+
+    const log = await Log.findOne({ habitId, userId, date: dateObj });
+    if (!log) {
+      res.status(404);
+      throw new Error('Log not found for this date');
+    }
+
+    log.note = trimmedNote;
+    await log.save();
+
+    res.status(200).json({
+      habitId,
+      date: dateStr,
+      done: true,
+      note: log.note
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get paginated history of check-ins and notes for a habit (newest first)
+// @route   GET /api/habits/:id/history?page=1&limit=10
+// @access  Private
+const getHabitHistory = async (req, res, next) => {
+  try {
+    const habitId = req.params.id;
+    const userId = req.userId || req.user._id;
+
+    if (!habitId || !mongoose.isValidObjectId(habitId)) {
+      res.status(400);
+      throw new Error('Valid habit ID is required');
+    }
+
+    const habit = await Habit.findOne({ _id: habitId, userId });
+    if (!habit) {
+      res.status(404);
+      throw new Error('Habit not found');
+    }
+
+    const { page, limit } = parsePagination({
+      page: req.query.page,
+      limit: req.query.limit
+    });
+
+    const total = await Log.countDocuments({ habitId, userId });
+    const totalPages = computeTotalPages(total, limit);
+
+    const logs = await Log.find({ habitId, userId })
+      .sort({ date: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+
+    const items = logs.map((l) => ({
+      date: formatUTCDate(l.date),
+      note: l.note || ''
+    }));
+
+    res.status(200).json({
+      items,
+      page,
+      limit,
+      total,
+      totalPages
+    });
   } catch (error) {
     next(error);
   }
@@ -308,6 +454,8 @@ const getActivitySummary = async (req, res, next) => {
 module.exports = {
   markDone,
   undoDone,
+  patchLogNote,
+  getHabitHistory,
   getHabitLogs,
   getHeatmap,
   getHabitStats,

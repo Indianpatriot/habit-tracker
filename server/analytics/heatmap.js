@@ -40,12 +40,30 @@ const getHeatmapPipeline = (userId, habitId, startDateUTC, todayUTC) => {
 };
 
 /**
- * Pure helper: Fills in missing days with count 0 to guarantee exactly 90 days ending today UTC
+ * Validates days parameter for heatmap and activity summary (30, 90, 365)
+ * Defaults to 90 if omitted. Returns null if invalid.
+ * @param {string|number|undefined} daysParam
+ * @returns {number|null}
+ */
+const validateHeatmapDays = (daysParam) => {
+  if (daysParam === undefined || daysParam === null || daysParam === '') {
+    return 90;
+  }
+  const parsed = Number(daysParam);
+  if ([30, 90, 365].includes(parsed)) {
+    return parsed;
+  }
+  return null;
+};
+
+/**
+ * Pure helper: Fills in missing days with count 0 to guarantee exactly `days` items ending today UTC
  * @param {Array} items - Array of { _id: "YYYY-MM-DD", count } or { date: "YYYY-MM-DD", count }
  * @param {Date|string} todayInput - Reference today date in UTC
- * @returns {Array<{ date: string, count: number }>} Array of exactly 90 days
+ * @param {number} days - Number of days in window (default 90)
+ * @returns {Array<{ date: string, count: number }>} Array of exactly `days` items
  */
-const fillZeroDays = (items = [], todayInput = new Date()) => {
+const fillZeroDays = (items = [], todayInput = new Date(), days = 90) => {
   const refDate = todayInput instanceof Date ? todayInput : new Date(todayInput);
   const todayUTC = new Date(Date.UTC(refDate.getUTCFullYear(), refDate.getUTCMonth(), refDate.getUTCDate()));
 
@@ -59,8 +77,8 @@ const fillZeroDays = (items = [], todayInput = new Date()) => {
   });
 
   const result = [];
-  // 90 days: from 89 days ago up to 0 days ago (today)
-  for (let i = 89; i >= 0; i--) {
+  // `days` items: from (days - 1) days ago up to 0 days ago (today)
+  for (let i = days - 1; i >= 0; i--) {
     const current = new Date(todayUTC);
     current.setUTCDate(todayUTC.getUTCDate() - i);
     const dateStr = formatUTCDate(current);
@@ -76,6 +94,7 @@ const fillZeroDays = (items = [], todayInput = new Date()) => {
 module.exports = {
   getHeatmapPipeline,
   fillZeroDays,
-  formatUTCDate
+  formatUTCDate,
+  validateHeatmapDays
 };
 

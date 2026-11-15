@@ -35,7 +35,7 @@ const getActivityAggregationPipeline = (userId, startDateUTC, todayUTC) => {
  * @param {Array<{ _id: string|ObjectId, name: string }>} userHabits
  * @returns {{ most: Object|null, least: Object|null, message: string|null }}
  */
-const pickMostLeast = (countsByHabit = [], userHabits = []) => {
+const pickMostLeast = (countsByHabit = [], userHabits = [], days = 90) => {
   if (!userHabits || userHabits.length === 0) {
     return {
       most: null,
@@ -65,7 +65,7 @@ const pickMostLeast = (countsByHabit = [], userHabits = []) => {
       habitId,
       name: h.name,
       count,
-      percent: Math.round((count / 90) * 100)
+      percent: Math.round((count / days) * 100)
     };
   });
 

@@ -7,7 +7,7 @@
     "dev": "node --watch index.js",
     "start": "node index.js",
     "seed": "node seed.js",
-    "test": "node --test tests/analytics.test.js tests/achievements.test.js tests/insightsOverview.test.js tests/crossInsights.test.js",
+    "test": "node --test tests/analytics.test.js tests/achievements.test.js tests/insightsOverview.test.js tests/crossInsights.test.js tests/pagination.test.js tests/heatmapRange.test.js tests/weekCompare.test.js tests/sanitize.test.js tests/profileValidation.test.js",
     "test:achievements": "node --test tests/achievements.test.js",
     "test:insights": "node --test tests/insightsOverview.test.js",
     "test:cross": "node --test tests/crossInsights.test.js"
@@ -20,6 +20,8 @@
     "cors": "^2.8.6",
     "dotenv": "^18.0.10",
     "express": "^5.3.0",
+    "express-rate-limit": "^8.7.4",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.12.1",
     "morgan": "^1.12.1"

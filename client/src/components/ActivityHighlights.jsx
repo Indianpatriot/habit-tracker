@@ -2,10 +2,10 @@ import PropTypes from 'prop-types';
 
 /**
  * ActivityHighlights component
- * Displays "Most active" and "Least active" habit cards over the last 90 days.
+ * Displays "Most active" and "Least active" habit cards over the last N days (30, 90, 365).
  * Includes prop validation and renders contextual messages when cards are missing.
  */
-const ActivityHighlights = ({ most, least, message }) => {
+const ActivityHighlights = ({ most, least, message, days = 90 }) => {
   // Empty state when no habits exist
   if (!most && !least) {
     return (
@@ -25,7 +25,7 @@ const ActivityHighlights = ({ most, least, message }) => {
           <h3 className="activity-card-title">Most active</h3>
           <div className="activity-habit-name">{most.name}</div>
           <div className="activity-habit-meta">
-            {most.count} completions in the last 90 days
+            {most.count} completions in the last {days} days
             <span className="activity-badge">{most.percent}%</span>
           </div>
         </div>
@@ -37,7 +37,7 @@ const ActivityHighlights = ({ most, least, message }) => {
           <h3 className="activity-card-title">Least active</h3>
           <div className="activity-habit-name">{least.name}</div>
           <div className="activity-habit-meta">
-            {least.count} completions in the last 90 days
+            {least.count} completions in the last {days} days
             <span className="activity-badge">{least.percent}%</span>
           </div>
         </div>
@@ -65,7 +65,8 @@ ActivityHighlights.propTypes = {
     count: PropTypes.number.isRequired,
     percent: PropTypes.number.isRequired
   }),
-  message: PropTypes.string
+  message: PropTypes.string,
+  days: PropTypes.number
 };
 
 export default ActivityHighlights;

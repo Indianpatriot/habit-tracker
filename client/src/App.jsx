@@ -13,6 +13,7 @@ import HabitDetail from './pages/HabitDetail';
 import EditHabit from './pages/EditHabit';
 import BadgesPage from './pages/BadgesPage';
 import InsightsPage from './pages/InsightsPage';
+import ProfilePage from './pages/ProfilePage';
 import NotFound from './pages/NotFound';
 
 /**
@@ -35,6 +36,7 @@ function App() {
               <Route path="/heatmap" element={<HeatmapPage />} />
               <Route path="/badges" element={<BadgesPage />} />
               <Route path="/insights" element={<InsightsPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
               <Route path="/habits/new" element={<AddHabitPage />} />
               <Route path="/habits/:id" element={<HabitDetail />} />
               <Route path="/habits/:id/edit" element={<EditHabit />} />

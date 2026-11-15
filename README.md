@@ -37,6 +37,7 @@ Copy `.env.example` to `.env` in both `server/` and `client/`:
 **Server Configuration (`server/.env`)**:
 ```env
 PORT=5000
+NODE_ENV=development
 MONGO_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/habitgraph?retryWrites=true&w=majority
 JWT_SECRET=supersecretphase2jwtkey12345678901234567890
 CLIENT_ORIGIN=http://localhost:5173
@@ -73,12 +74,13 @@ npm run dev
 
 All protected endpoints require an `Authorization: Bearer <token>` header obtained from `/api/auth/login` or `/api/auth/register`.
 
-### 1. Authentication (`/api/auth`)
+### 1. Authentication & Profile (`/api/auth`)
 | Method | Endpoint | Access | Description | Status Codes |
 |---|---|---|---|---|
 | `POST` | `/api/auth/register` | Public | Register new user `{ name, email, password }` | `201`, `400`, `409` |
-| `POST` | `/api/auth/login` | Public | Authenticate user `{ email, password }` | `200`, `400`, `401` |
-| `GET` | `/api/auth/me` | Protected | Get profile of logged-in user | `200`, `401` |
+| `POST` | `/api/auth/login` | Public | Authenticate user `{ email, password }` (Rate limited: 10/15min) | `200`, `400`, `401`, `429` |
+| `GET` | `/api/auth/me` | Protected | Get profile of logged-in user `{ _id, name, email, age, picture, createdAt }` | `200`, `401` |
+| `PUT` | `/api/auth/me` | Protected | Partial update profile `{ name, age, email, picture }` (300kb limit) | `200`, `400`, `401`, `409` |
 
 ### 2. Habits CRUD (`/api/habits`)
 | Method | Endpoint | Access | Description | Status Codes |
@@ -89,20 +91,27 @@ All protected endpoints require an `Authorization: Bearer <token>` header obtain
 | `PUT` | `/api/habits/:id` | Protected | Update/rename habit | `200`, `400`, `404`, `409` |
 | `DELETE` | `/api/habits/:id` | Protected | Delete habit and cascade delete all its logs | `204`, `400`, `404` |
 
-### 3. Check-ins & Idempotent Logs (`/api/habits/:id/logs`)
+### 3. Check-ins, Notes & History (`/api/habits/:id/logs`, `/api/habits/:id/history`)
 | Method | Endpoint | Access | Description | Status Codes |
 |---|---|---|---|---|
-| `POST` | `/api/habits/:id/logs` | Protected | Record completion (optional `{ date: "YYYY-MM-DD" }`, defaults to today UTC; idempotent upsert) | `200`, `400`, `404` |
+| `POST` | `/api/habits/:id/logs` | Protected | Record completion (optional `{ date, note }`; idempotent upsert) | `200`, `400`, `404` |
+| `PATCH`| `/api/habits/:id/logs/:date` | Protected | Edit or clear note on existing log `{ note }` | `200`, `400`, `404` |
+| `GET`  | `/api/habits/:id/history` | Protected | Paginated check-in history `?page=1&limit=10` (newest first) | `200`, `400`, `404` |
 | `DELETE` | `/api/habits/:id/logs/:date`| Protected | Remove completion for date (idempotent delete) | `200`, `400`, `404` |
 | `GET` | `/api/habits/:id/logs?from=&to=` | Protected | List completion log date strings (`["YYYY-MM-DD", ...]`) | `200`, `400`, `404` |
 
 ### 4. Analytics & Aggregations (`/api/stats`)
 Streaks, heatmaps, and stats are **never stored**; they are derived on-the-fly from logs using MongoDB aggregation pipelines.
+
 | Method | Endpoint | Access | Description | Status Codes |
 |---|---|---|---|---|
-| `GET` | `/api/stats/heatmap?habitId=` | Protected | Exactly 90 items `[{ date, count }]` ending today UTC with 0 filled for missing days | `200`, `400`, `401` |
-| `GET` | `/api/habits/:id/stats` | Protected | Habit streak stats `{ currentStreak, longestStreak, last30: { done, percent } }` via MongoDB window fields | `200`, `400`, `404` |
-| `GET` | `/api/stats/activity` | Protected | Most and least active habits `{ most, least, message }` with alphabetical tie-breaking | `200`, `401` |
+| `GET` | `/api/stats/heatmap?days=30\|90\|365` | Protected | Range-selectable activity matrix ending today UTC (default 90) | `200`, `400`, `401` |
+| `GET` | `/api/stats/activity?days=30\|90\|365` | Protected | Most and least active habits in window with alphabetical tie-breaking | `200`, `400`, `401` |
+| `GET` | `/api/stats/week-compare` | Protected | Fair This Week (Mon-today) vs Last Week comparison stats | `200`, `401` |
+| `GET` | `/api/habits/:id/stats` | Protected | Habit streak stats `{ currentStreak, longestStreak, last30 }` | `200`, `400`, `404` |
+| `GET` | `/api/stats/achievements` | Protected | 25 derived achievement badges across 5 categories | `200`, `401` |
+| `GET` | `/api/stats/insights/overview` | Protected | Visual insights data for all 6 SVG dashboard charts | `200`, `401` |
+| `GET` | `/api/stats/insights/cross` | Protected | Cross-habit pair matrix, keystone, best pair & correlations | `200`, `401` |
 
 ### 5. Badges & Cross-Habit Correlation
 | Method | Endpoint | Access | Description | Status Codes |
@@ -123,25 +132,25 @@ cd server
 npm test
 ```
 
-### Test Coverage Highlights (`server/tests/analytics.test.js`)
-- **`fillZeroDays`**:
-  - Verifies exactly 90 items ending today UTC.
-  - Verifies 0 is filled for missing days.
-  - Verifies handling of empty input arrays.
-  - Verifies parsing of MongoDB aggregation `_id` keys.
-- **`pickMostLeast`**:
-  - Covers 0 habits $\rightarrow$ `{ most: null, least: null, message: "No habits yet" }`.
-  - Covers 1 habit $\rightarrow$ `{ most, least: null, message: "Add more habits to compare" }`.
-  - Covers all-equal counts $\rightarrow$ `{ most: alphabeticalFirst, least: null, message: "All habits are equally active" }`.
-  - Covers 2+ distinct habits $\rightarrow$ distinct most and least with `message: null`.
-  - Covers alphabetical tie-breaking for both most and least active.
-- **`computeStreaksFromRuns`**:
-  - Covers no logs $\rightarrow$ `{ currentStreak: 0, longestStreak: 0 }`.
-  - Covers single log ending today, ending yesterday, and ended 2+ days ago.
-  - Covers runs with gaps in the middle:
-    - Streak ending today: current streak maintained.
-    - Streak ending yesterday: in-progress streak maintained.
-    - Streak ended 2+ days ago: current streak drops to 0 while longest streak is preserved.
+### Test Coverage Highlights (77 Unit Tests across 9 Suites)
+- **`server/tests/pagination.test.js`**:
+  - `parsePagination`: defaults (`page=1`, `limit=10`), valid integers/strings, limit cap (50 allowed, 51 rejected), invalid values (negative, zero, floats, non-numeric).
+  - `computeTotalPages`: 0 items $\rightarrow$ 0 pages, exact boundary pages, partial ceiling pages.
+- **`server/tests/heatmapRange.test.js`**:
+  - `validateHeatmapDays`: validates allowed values (30, 90, 365), default fallback to 90, rejects others.
+  - `fillZeroDays`: verifies exact length of 30, 90, and 365 items ending today UTC.
+- **`server/tests/weekCompare.test.js`**:
+  - `computeWeekCompare`: covers empty logs, only this week (null percent), only last week (-100%), positive growth, ties broken alphabetically, and Monday edge case (1-day fair window).
+- **`server/tests/sanitize.test.js`**:
+  - `hasDangerousKeys`: detects keys starting with `$` or containing `.` at top level, deeply nested objects, arrays, and complex payloads.
+- **`server/tests/profileValidation.test.js`**:
+  - Name length (2 to 50 chars), age integer range (10 to 100 or null), email regex format, picture data URL prefix (`png`, `jpeg`, `webp`) and 200,000 char size limit.
+- **`server/tests/analytics.test.js`**:
+  - Offline tests for streaks gaps-and-islands, 90-day zero filling, and most/least active habit comparisons.
+- **`server/tests/achievements.test.js`**:
+  - Exactly 25 badges derived across STREAK, VOLUME, HABITS, CONSISTENCY, CROSS-HABIT categories.
+- **`server/tests/insightsOverview.test.js`** & **`server/tests/crossInsights.test.js`**:
+  - SVG visual calculations and cross-habit co-occurrence matrices.
 
 ---
 

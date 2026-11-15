@@ -1,5 +1,11 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const {
+  validateName,
+  validateAge,
+  validateEmail,
+  validatePicture
+} = require('../analytics/profileValidation');
 
 // Helper to sign JWT token with payload { userId }, expiring in 7 days
 const generateToken = (userId) => {
@@ -79,8 +85,8 @@ const loginUser = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    // Both email and password must be provided
-    if (!email || !password) {
+    // Both email and password must be provided as strings
+    if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
       res.status(400);
       throw new Error('Please provide email and password');
     }
@@ -122,8 +128,86 @@ const loginUser = async (req, res, next) => {
 // @access  Private
 const getMe = async (req, res, next) => {
   try {
-    // req.user attached by protect middleware, password excluded
-    res.status(200).json(req.user);
+    const user = req.user;
+    res.status(200).json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      age: user.age !== undefined && user.age !== null ? user.age : null,
+      picture: user.picture || '',
+      createdAt: user.createdAt
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update current user profile (name, age, email, picture)
+// @route   PUT /api/auth/me
+// @access  Private
+const updateMe = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const { name, age, email, picture } = req.body || {};
+
+    const user = await User.findById(userId);
+    if (!user) {
+      res.status(404);
+      throw new Error('User not found');
+    }
+
+    if (name !== undefined) {
+      const v = validateName(name);
+      if (!v.valid) {
+        res.status(400);
+        throw new Error(v.error);
+      }
+      user.name = v.value;
+    }
+
+    if (age !== undefined) {
+      const v = validateAge(age);
+      if (!v.valid) {
+        res.status(400);
+        throw new Error(v.error);
+      }
+      user.age = v.value;
+    }
+
+    if (email !== undefined) {
+      const v = validateEmail(email);
+      if (!v.valid) {
+        res.status(400);
+        throw new Error(v.error);
+      }
+      // Check if email already in use by another user
+      const existingUser = await User.findOne({ email: v.value, _id: { $ne: userId } });
+      if (existingUser) {
+        res.status(409);
+        throw new Error('Email is already registered to another account');
+      }
+      user.email = v.value;
+    }
+
+    if (picture !== undefined) {
+      const v = validatePicture(picture);
+      if (!v.valid) {
+        res.status(400);
+        throw new Error(v.error);
+      }
+      user.picture = v.value;
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      age: user.age !== undefined && user.age !== null ? user.age : null,
+      picture: user.picture || '',
+      createdAt: user.createdAt
+    });
   } catch (error) {
     next(error);
   }
@@ -132,5 +216,6 @@ const getMe = async (req, res, next) => {
 module.exports = {
   registerUser,
   loginUser,
-  getMe
+  getMe,
+  updateMe
 };

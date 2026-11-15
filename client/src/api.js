@@ -97,12 +97,14 @@ export const getHabitById = async (id) => {
 };
 
 /**
- * Fetch 90-day heatmap data from MongoDB Atlas logs
+ * Fetch heatmap data from MongoDB Atlas logs (supports 30, 90, 365 days)
  */
-export const getHeatmap = async (habitId = null) => {
-  const url = habitId
-    ? `${API_BASE_URL}/api/stats/heatmap?habitId=${encodeURIComponent(habitId)}`
-    : `${API_BASE_URL}/api/stats/heatmap`;
+export const getHeatmap = async (habitId = null, days = 90) => {
+  const params = new URLSearchParams();
+  if (habitId) params.set('habitId', habitId);
+  if (days) params.set('days', String(days));
+  const qs = params.toString();
+  const url = `${API_BASE_URL}/api/stats/heatmap${qs ? `?${qs}` : ''}`;
 
   const res = await fetch(url, {
     method: 'GET',
@@ -123,10 +125,11 @@ export const getStats = async (habitId) => {
 };
 
 /**
- * Fetch most active and least active habit summary from MongoDB Atlas logs
+ * Fetch most active and least active habit summary from MongoDB Atlas logs (supports 30, 90, 365 days)
  */
-export const getActivitySummary = async () => {
-  const res = await fetch(`${API_BASE_URL}/api/stats/activity`, {
+export const getActivitySummary = async (days = 90) => {
+  const url = `${API_BASE_URL}/api/stats/activity${days ? `?days=${days}` : ''}`;
+  const res = await fetch(url, {
     method: 'GET',
     headers: getAuthHeaders()
   });
@@ -180,14 +183,44 @@ export const deleteHabit = async (id) => {
 };
 
 /**
- * Record a habit completion log for a date in MongoDB Atlas
+ * Record a habit completion log for a date in MongoDB Atlas (with optional note)
  */
-export const markDone = async (habitId, date) => {
+export const markDone = async (habitId, date, note) => {
+  const payload = {};
+  if (date) payload.date = date;
+  if (note !== undefined && note !== null) payload.note = note;
+
   const res = await fetch(`${API_BASE_URL}/api/habits/${habitId}/logs`, {
     method: 'POST',
     headers: getAuthHeaders(),
-    body: JSON.stringify(date ? { date } : {})
+    body: JSON.stringify(payload)
   });
+  return handleResponse(res);
+};
+
+/**
+ * Edit or clear note on an existing check-in log
+ */
+export const patchLogNote = async (habitId, date, note) => {
+  const res = await fetch(`${API_BASE_URL}/api/habits/${habitId}/logs/${date}`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ note })
+  });
+  return handleResponse(res);
+};
+
+/**
+ * Fetch paginated history of completions and notes for a habit
+ */
+export const getHabitHistory = async (habitId, page = 1, limit = 10) => {
+  const res = await fetch(
+    `${API_BASE_URL}/api/habits/${habitId}/history?page=${page}&limit=${limit}`,
+    {
+      method: 'GET',
+      headers: getAuthHeaders()
+    }
+  );
   return handleResponse(res);
 };
 
@@ -265,6 +298,58 @@ export const getCorrelation = async (habitAId, habitBId, days = 90) => {
  */
 export const getCorrelations = async (days = 90) => {
   const res = await fetch(`${API_BASE_URL}/api/insights/correlations?days=${days}`, {
+    method: 'GET',
+    headers: getAuthHeaders()
+  });
+  return handleResponse(res);
+};
+
+/**
+ * Fetch user profile from /api/auth/me
+ */
+export const getProfile = async () => {
+  const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+    method: 'GET',
+    headers: getAuthHeaders()
+  });
+  return handleResponse(res);
+};
+
+/**
+ * Update user profile via PUT /api/auth/me
+ */
+export const updateProfile = async (profileData) => {
+  const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(profileData)
+  });
+  const data = await handleResponse(res);
+  const stored = localStorage.getItem('user');
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      localStorage.setItem(
+        'user',
+        JSON.stringify({
+          ...parsed,
+          name: data.name,
+          email: data.email,
+          picture: data.picture || ''
+        })
+      );
+    } catch {
+      // ignore JSON parse error
+    }
+  }
+  return data;
+};
+
+/**
+ * Fetch this week vs last week comparison stats
+ */
+export const getWeekCompare = async () => {
+  const res = await fetch(`${API_BASE_URL}/api/stats/week-compare`, {
     method: 'GET',
     headers: getAuthHeaders()
   });

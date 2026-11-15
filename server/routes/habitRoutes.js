@@ -11,6 +11,8 @@ const {
 const {
   markDone,
   undoDone,
+  patchLogNote,
+  getHabitHistory,
   getHabitLogs,
   getHabitStats
 } = require('../controllers/logController');
@@ -34,6 +36,8 @@ router.route('/:id/logs')
   .get(getHabitLogs);
 
 router.delete('/:id/logs/:date', undoDone);
+router.patch('/:id/logs/:date', patchLogNote);
+router.get('/:id/history', getHabitHistory);
 
 // Habit streaks endpoint ({ current, longest, unit: 'days'|'weeks' })
 router.get('/:id/streaks', getHabitStreaks);
