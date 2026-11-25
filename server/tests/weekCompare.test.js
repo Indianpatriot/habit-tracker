@@ -127,3 +127,4 @@ describe('Week Comparison Pure Helpers (node:test)', () => {
     assert.strictEqual(result.delta.percent, 0);
   });
 });
+

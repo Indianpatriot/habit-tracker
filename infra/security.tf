@@ -29,3 +29,4 @@ resource "aws_security_group" "ec2" {
     Name = "${var.project_name}-${var.environment}-ec2-sg"
   }
 }
+

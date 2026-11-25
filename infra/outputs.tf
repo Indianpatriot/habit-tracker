@@ -22,3 +22,4 @@ output "ec2_instance_id" {
   description = "EC2 instance ID for SSM Session Manager and Run Command deployments"
   value       = aws_instance.app.id
 }
+

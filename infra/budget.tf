@@ -24,3 +24,4 @@ resource "aws_budgets_budget" "monthly_cost" {
     subscriber_email_addresses = [var.alert_email]
   }
 }
+

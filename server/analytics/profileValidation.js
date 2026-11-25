@@ -89,3 +89,4 @@ module.exports = {
   validateEmail,
   validatePicture
 };
+

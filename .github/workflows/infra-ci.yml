@@ -45,3 +45,4 @@ jobs:
           scan-ref: 'infra'
           format: 'table'
           exit-code: '0'
+

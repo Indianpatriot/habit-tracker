@@ -49,3 +49,4 @@ INVALIDATION_ID="$(aws cloudfront create-invalidation \
   --output text)"
 
 echo "==> Frontend deployed. CloudFront invalidation ID: $INVALIDATION_ID"
+

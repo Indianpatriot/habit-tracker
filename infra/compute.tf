@@ -172,3 +172,4 @@ resource "aws_eip" "app" {
     Name = "${var.project_name}-${var.environment}-eip"
   }
 }
+

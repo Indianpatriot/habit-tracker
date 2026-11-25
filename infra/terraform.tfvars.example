@@ -6,3 +6,4 @@ ebs_volume_size_gb = 20
 project_name       = "habit-tracker"
 alert_email        = "alerts@example.com"
 allowed_admin_cidr = ""
+

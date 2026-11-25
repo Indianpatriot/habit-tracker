@@ -25,3 +25,4 @@ resource "aws_ssm_parameter" "jwt_secret" {
   type        = "SecureString"
   value       = random_password.jwt_secret.result
 }
+

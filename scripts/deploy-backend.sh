@@ -75,3 +75,4 @@ STATUS="$(aws ssm get-command-invocation \
   --output text)"
 
 echo "==> Backend deployment finished with SSM status: $STATUS"
+

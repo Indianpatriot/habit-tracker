@@ -55,3 +55,4 @@ describe('Input Sanitization Pure Helper (hasDangerousKeys)', () => {
     assert.strictEqual(hasDangerousKeys([[[{ 'nested.key': 'val' }]]]), true);
   });
 });
+

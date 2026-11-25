@@ -56,3 +56,4 @@ const getWeekCompareStats = async (req, res, next) => {
 module.exports = {
   getWeekCompareStats
 };
+
