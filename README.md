@@ -161,3 +161,71 @@ On every `push` and `pull_request` to `main`:
 1. Sets up Node.js 20.
 2. In `server/`: runs `npm ci` and `npm test` (offline unit tests, no secrets, no MongoDB connection).
 3. In `client/`: runs `npm ci` and `npm run build` (Vite production bundle verification).
+
+---
+
+## Cloud deployment (AWS + Terraform)
+
+### Architecture
+
+```mermaid
+flowchart LR
+  User["Browser (HTTPS)"] --> CF["Amazon CloudFront"]
+  CF -->|"Default /* (OAC)"| S3["Private S3 Bucket (React SPA)"]
+  CF -->|"/api/* (HTTP :80, SG-restricted)"| EC2["EC2 t3.micro (Docker Compose)"]
+  EC2 -->|"Port 80 -> 5000"| API["Express API (ECR image)"]
+  API -->|"Internal Docker network"| Mongo["MongoDB 7 + EBS gp3"]
+  SSM["SSM Parameter Store & Session Manager"] -.->|"Secrets & Shell"| EC2
+  Budgets["AWS Budgets ($5/mo alert)"] -.->|"Email"| User
+```
+
+### Prerequisites
+- **AWS CLI** v2 configured with permissions for VPC, EC2, S3, CloudFront, ECR, IAM, SSM, and Budgets
+- **Terraform** `>= 1.10`
+- **Docker** (with Buildx / Compose v2 plugin)
+
+### Deployment Commands
+
+1. **Configure variables**:
+   ```bash
+   cd infra
+   cp terraform.tfvars.example terraform.tfvars
+   # Edit terraform.tfvars and set your real alert_email
+   ```
+2. **Initialize, plan, and apply**:
+   ```bash
+   terraform init
+   terraform plan -out=tfplan
+   terraform apply tfplan
+   ```
+3. **Deploy backend (build, push to ECR, restart via SSM)**:
+   ```bash
+   cd ..
+   ./scripts/deploy-backend.sh
+   ```
+4. **Deploy frontend (Vite build, S3 sync, CloudFront invalidation)**:
+   ```bash
+   ./scripts/deploy-frontend.sh
+   ```
+5. **Open the application**:
+   ```bash
+   echo "https://$(terraform -chdir=infra output -raw cloudfront_domain_name)"
+   ```
+6. **Tear down all cloud resources when done**:
+   ```bash
+   cd infra
+   terraform destroy
+   ```
+
+### Estimated Cost Note
+> **Note**: Please check the current [AWS Free Tier terms](https://aws.amazon.com/free/) for your account before deploying. Under AWS Free Tier (within eligible limits), `t3.micro`, 20 GB `gp3` EBS, S3 storage, CloudFront data transfer, and ECR storage typically incur minimal or near-zero cost, while an Elastic IP attached to a running instance and minimal SSM/CloudFront requests stay within low single-digit USD/month. A **$5 USD/month** `aws_budgets_budget` alert (at 80% actual and 100% forecasted) is included to notify you early if unexpected usage occurs.
+
+### Design Decisions
+- **MongoDB in a container on EC2 instead of DocumentDB or Atlas**: Keeps all compute and storage in one `t3.micro` instance with an encrypted `gp3` EBS volume and zero external database hosting cost or VPC peering/NAT complexity for a student/demo project.
+- **Why CloudFront fronts both the frontend and `/api/*`**: Serves the React SPA over HTTPS from a private S3 bucket and proxies `/api/*` on the same domain, eliminating browser CORS issues and keeping the EC2 origin locked down to the CloudFront origin-facing managed prefix list (`com.amazonaws.global.cloudfront.origin-facing`).
+- **Why SSM instead of SSH**: Eliminates open port 22, SSH key pairs, and bastion hosts. Both interactive troubleshooting (Session Manager) and automated deployments (`aws ssm send-command` in `deploy-backend.sh`) work through IAM-authenticated SSM endpoints.
+- **What I would change for production**:
+  - Use a managed database (e.g. MongoDB Atlas or Amazon DocumentDB) with automated backups and multi-AZ failover instead of single-node containerized MongoDB.
+  - Terminate TLS on an Application Load Balancer (ACM certificate) in front of private subnets so traffic from CloudFront to the origin is encrypted end-to-end (HTTPS).
+  - Move EC2 instances into private subnets behind an ALB + Auto Scaling Group across multiple Availability Zones.
+  - Enable Terraform remote state (`infra/backend.tf.example`) with S3 versioning and `use_lockfile = true`.

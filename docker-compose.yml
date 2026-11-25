@@ -1,0 +1,36 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-habitadmin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-changeme_local_only}
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-habitgraph}
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${PORT:-5000}:5000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 5000
+      MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-habitadmin}:${MONGO_INITDB_ROOT_PASSWORD:-changeme_local_only}@mongo:27017/${MONGO_DB:-habitgraph}?authSource=admin
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+volumes:
+  mongo_data:

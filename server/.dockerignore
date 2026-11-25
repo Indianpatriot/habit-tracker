@@ -1,0 +1,10 @@
+node_modules
+.env
+.env.*
+tests
+coverage
+*.log
+.git
+.gitignore
+seed.js
+seed_alice.js

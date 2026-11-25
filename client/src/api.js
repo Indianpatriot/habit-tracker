@@ -1,7 +1,12 @@
 // Pure API client layer for Habit Graph Tracker
 // Directly connects to Express backend & MongoDB Atlas (Zero mock/sample data)
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// Default to relative '/api' base path so production builds work behind CloudFront without CORS;
+// override via VITE_API_URL (e.g. http://localhost:5000) for standalone dev if needed.
+const API_BASE_URL = (import.meta.env.VITE_API_URL || '')
+  .trim()
+  .replace(/\/+$/, '')
+  .replace(/\/api$/, '');
 
 // Helper to construct authorization headers with stored JWT token
 const getAuthHeaders = () => {

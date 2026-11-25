@@ -12,10 +12,7 @@ const protect = async (req, res, next) => {
       token = req.headers.authorization.split(' ')[1];
 
       // Verify signed JWT token
-      const decoded = jwt.verify(
-        token,
-        process.env.JWT_SECRET || 'supersecretphase2jwtkey12345'
-      );
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
       // Set req.userId from token payload { userId }
       req.userId = decoded.userId || decoded.id;

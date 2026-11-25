@@ -9,11 +9,7 @@ const {
 
 // Helper to sign JWT token with payload { userId }, expiring in 7 days
 const generateToken = (userId) => {
-  return jwt.sign(
-    { userId },
-    process.env.JWT_SECRET || 'supersecretphase2jwtkey12345',
-    { expiresIn: '7d' }
-  );
+  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
 };
 
 // Email format regex validation
